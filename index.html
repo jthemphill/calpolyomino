@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar Puzzle Solver</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .controls {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+
+        select:hover {
+            border-color: #667eea;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 15px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .board-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .board {
+            display: grid;
+            gap: 4px;
+            margin-top: 20px;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .cell.invalid {
+            background: transparent;
+        }
+
+        .cell.empty {
+            background: #f0f0f0;
+            border: 2px solid #e0e0e0;
+        }
+
+        .cell.target {
+            background: #333;
+            color: white;
+            font-size: 12px;
+        }
+
+        .cell.piece {
+            color: white;
+            font-weight: bold;
+            border: 2px solid rgba(0,0,0,0.1);
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .month-labels, .day-labels {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+            margin-bottom: 4px;
+        }
+
+        .day-labels {
+            grid-template-columns: repeat(7, 1fr);
+        }
+
+        .label {
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            padding: 4px;
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .cell {
+                font-size: 12px;
+            }
+
+            .label {
+                font-size: 9px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📅 Calendar Puzzle Solver</h1>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="month">Month:</label>
+                <select id="month">
+                    <option value="Jan">January</option>
+                    <option value="Feb">February</option>
+                    <option value="Mar">March</option>
+                    <option value="Apr">April</option>
+                    <option value="May">May</option>
+                    <option value="Jun">June</option>
+                    <option value="Jul">July</option>
+                    <option value="Aug">August</option>
+                    <option value="Sep">September</option>
+                    <option value="Oct">October</option>
+                    <option value="Nov">November</option>
+                    <option value="Dec">December</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="day">Day:</label>
+                <select id="day">
+                    <!-- Days will be populated by JavaScript -->
+                </select>
+            </div>
+
+            <button id="solve-btn">Solve Puzzle</button>
+        </div>
+
+        <div class="board-container">
+            <h2 style="text-align: center; margin-bottom: 15px; color: #333;">Solution</h2>
+            <div id="board"></div>
+            <div id="status"></div>
+        </div>
+    </div>
+
+    <script src="solver.js"></script>
+    <script>
+        // Populate days dropdown
+        const daySelect = document.getElementById('day');
+        for (let i = 1; i <= 31; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = i;
+            daySelect.appendChild(option);
+        }
+
+        // Set to today's date
+        const today = new Date();
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        document.getElementById('month').value = months[today.getMonth()];
+        document.getElementById('day').value = today.getDate();
+
+        const puzzle = new CalendarPuzzle();
+
+        // Piece colors
+        const pieceColors = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A',
+            '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'
+        ];
+
+        function renderBoard(month, day, solution) {
+            const boardDiv = document.getElementById('board');
+            boardDiv.innerHTML = '';
+
+            // Create board data structure
+            const board = Array(7).fill(null).map(() => Array(7).fill(null));
+
+            // Mark invalid cells
+            for (let r = 0; r < 7; r++) {
+                for (let c = 0; c < 7; c++) {
+                    if (!puzzle.validCells.has(`${r},${c}`)) {
+                        board[r][c] = { type: 'invalid' };
+                    } else {
+                        board[r][c] = { type: 'empty' };
+                    }
+                }
+            }
+
+            // Mark target cells
+            const monthCell = puzzle.months[month];
+            const dayCell = puzzle.days[day];
+            board[monthCell[0]][monthCell[1]] = { type: 'target', label: month };
+            board[dayCell[0]][dayCell[1]] = { type: 'target', label: day };
+
+            // Place pieces if solution exists
+            if (solution) {
+                for (const placement of solution) {
+                    const { pieceIdx, cells } = placement;
+                    for (const [r, c] of cells) {
+                        board[r][c] = {
+                            type: 'piece',
+                            pieceIdx,
+                            label: pieceIdx
+                        };
+                    }
+                }
+            }
+
+            // Month labels
+            const monthLabels = document.createElement('div');
+            monthLabels.className = 'month-labels';
+            ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'].forEach(m => {
+                const label = document.createElement('div');
+                label.className = 'label';
+                label.textContent = m;
+                monthLabels.appendChild(label);
+            });
+            boardDiv.appendChild(monthLabels);
+
+            // Month row 1
+            let row = document.createElement('div');
+            row.className = 'row';
+            for (let c = 0; c < 6; c++) {
+                row.appendChild(createCell(board[0][c]));
+            }
+            row.appendChild(createCell({ type: 'invalid' }));
+            boardDiv.appendChild(row);
+
+            // Month labels row 2
+            const monthLabels2 = document.createElement('div');
+            monthLabels2.className = 'month-labels';
+            ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].forEach(m => {
+                const label = document.createElement('div');
+                label.className = 'label';
+                label.textContent = m;
+                monthLabels2.appendChild(label);
+            });
+            boardDiv.appendChild(monthLabels2);
+
+            // Month row 2
+            row = document.createElement('div');
+            row.className = 'row';
+            for (let c = 0; c < 6; c++) {
+                row.appendChild(createCell(board[1][c]));
+            }
+            row.appendChild(createCell({ type: 'invalid' }));
+            boardDiv.appendChild(row);
+
+            // Day rows
+            let dayNum = 1;
+            for (let r = 2; r < 7; r++) {
+                // Day labels
+                if (r < 6) {
+                    const dayLabels = document.createElement('div');
+                    dayLabels.className = 'day-labels';
+                    for (let i = 0; i < 7; i++) {
+                        const label = document.createElement('div');
+                        label.className = 'label';
+                        label.textContent = dayNum + i;
+                        dayLabels.appendChild(label);
+                    }
+                    boardDiv.appendChild(dayLabels);
+                    dayNum += 7;
+                } else {
+                    const dayLabels = document.createElement('div');
+                    dayLabels.className = 'month-labels';
+                    for (let i = 0; i < 3; i++) {
+                        const label = document.createElement('div');
+                        label.className = 'label';
+                        label.textContent = 29 + i;
+                        dayLabels.appendChild(label);
+                    }
+                    boardDiv.appendChild(dayLabels);
+                }
+
+                // Day cells
+                row = document.createElement('div');
+                row.className = 'row';
+                for (let c = 0; c < 7; c++) {
+                    row.appendChild(createCell(board[r][c]));
+                }
+                boardDiv.appendChild(row);
+            }
+        }
+
+        function createCell(data) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+
+            if (data.type === 'invalid') {
+                cell.classList.add('invalid');
+            } else if (data.type === 'empty') {
+                cell.classList.add('empty');
+            } else if (data.type === 'target') {
+                cell.classList.add('target');
+                cell.textContent = data.label;
+            } else if (data.type === 'piece') {
+                cell.classList.add('piece');
+                cell.style.background = pieceColors[data.pieceIdx];
+                cell.textContent = data.label;
+            }
+
+            return cell;
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        // Initial render
+        renderBoard(document.getElementById('month').value, parseInt(document.getElementById('day').value), null);
+
+        // Solve button handler
+        document.getElementById('solve-btn').addEventListener('click', () => {
+            const month = document.getElementById('month').value;
+            const day = parseInt(document.getElementById('day').value);
+            const btn = document.getElementById('solve-btn');
+
+            btn.disabled = true;
+            btn.textContent = 'Solving...';
+            showStatus('Searching for solution...', 'info');
+
+            // Use setTimeout to allow UI to update
+            setTimeout(() => {
+                try {
+                    const solution = puzzle.solveBacktrack(month, day);
+
+                    if (solution) {
+                        renderBoard(month, day, solution);
+                        showStatus(`✓ Solution found! ${solution.length} pieces placed.`, 'success');
+                    } else {
+                        renderBoard(month, day, null);
+                        showStatus('✗ No solution found. The puzzle may not be solvable for this date.', 'error');
+                    }
+                } catch (error) {
+                    showStatus(`Error: ${error.message}`, 'error');
+                    console.error(error);
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Solve Puzzle';
+                }
+            }, 100);
+        });
+
+        // Auto-solve on load
+        setTimeout(() => {
+            document.getElementById('solve-btn').click();
+        }, 500);
+    </script>
+</body>
+</html>

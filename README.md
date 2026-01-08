@@ -1,6 +1,6 @@
 # Calendar Puzzle Solver
 
-A solver for the daily calendar puzzle using Python and Z3.
+A browser-based solver for the daily calendar puzzle using JavaScript.
 
 ## The Puzzle
 
@@ -23,92 +23,61 @@ Jul Aug Sep Oct Nov Dec
 - Total valid cells: 43 (12 months + 31 days)
 - Cells to fill: 41 (leaving 2 empty for target month and day)
 
-## Installation
-
-```bash
-uv sync
-```
-
 ## Usage
 
-Run the solver with a specific month and day:
+Simply open `index.html` in your web browser!
 
-```bash
-uv run solver.py <Month> <Day>
-```
+The puzzle will automatically solve for today's date. You can select any month and day from the dropdowns and click "Solve Puzzle" to see the solution.
 
-### Examples
+### Features
 
-```bash
-# Solve for January 7
-uv run solver.py Jan 7
-
-# Solve for December 25
-uv run solver.py Dec 25
-
-# Solve for July 4
-uv run solver.py Jul 4
-
-# View the current piece definitions
-uv run solver.py --show-pieces
-```
-
-If no arguments are provided, it defaults to January 7.
+- Visual, color-coded solution display
+- Interactive month and day selection
+- Auto-solves for today's date on load
+- Clean, modern UI with responsive design
+- Works entirely in the browser (no server needed)
 
 ## How It Works
 
-The solver uses two approaches:
-
-1. **Backtracking Search** (default, faster): Tries to place pieces one by one, backtracking when it hits a dead end
-2. **Z3 SMT Solver** (fallback): Uses constraint solving if backtracking fails
-
-The solver:
+The solver uses a **backtracking search algorithm**:
 - Generates all possible orientations (rotations and reflections) for each piece
 - Enumerates all valid placements on the board
 - Searches for a configuration where all non-target cells are covered exactly once
 
+The algorithm is implemented in pure JavaScript and runs directly in your browser.
+
 ## Customizing Pieces
 
-The default piece definitions may not match your physical puzzle. You can easily update them using ASCII art!
+The default piece definitions may not match your physical puzzle. You can easily update them in `solver.js`!
 
 ### How to Define Your Pieces
 
 1. Look at your physical puzzle pieces
-2. Open `solver.py` and find the `piece_ascii` list (around line 70)
+2. Open `solver.js` and find the `pieceAscii` array (around line 71)
 3. Update each piece definition using `#` to mark cells
 
 ### Example Piece Definitions
 
-```python
-piece_ascii = [
-    # Piece 0: 3x2 rectangle (6 cells)
-    """
+```javascript
+const pieceAscii = [
+    // Piece 0: 3x2 rectangle (6 cells)
+    `
     ##
     ##
     ##
-    """,
+    `,
 
-    # Piece 1: L pentomino (5 cells)
-    """
+    // Piece 1: L pentomino (5 cells)
+    `
     #
     #
     #
     ##
-    """,
+    `,
 
-    # Add more pieces...
-]
+    // Add more pieces...
+];
 ```
-
-### Viewing Your Pieces
-
-To see what the current pieces look like:
-
-```bash
-uv run solver.py --show-pieces
-```
-
-This displays all pieces in ASCII format with their cell counts, making it easy to verify they match your physical puzzle.
 
 ### Tips for Defining Pieces
 
@@ -121,13 +90,18 @@ This displays all pieces in ASCII format with their cell counts, making it easy 
 ## Output
 
 The solver displays:
-- A visual representation of the solution
+- A visual board with color-coded pieces
 - Month and day labels
-- Each piece marked with a unique character (0-7)
-- Target cells marked with █
-- Invalid cells marked with ·
+- Each piece marked with its number and unique color
+- Target cells marked in black
+- Success/error status messages
 
-## Requirements
+## Browser Compatibility
 
-- Python 3.14+
-- z3-solver 4.15.4.0
+Works in all modern browsers:
+- Chrome/Edge
+- Firefox
+- Safari
+- Opera
+
+No installation or dependencies required!

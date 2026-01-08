@@ -1,7 +1,0 @@
-[project]
-name = "calendar-puzzle"
-version = "0.1.0"
-description = "Calendar puzzle solver using Z3"
-readme = "README.md"
-requires-python = ">=3.14"
-dependencies = ["z3-solver==4.15.4.0"]
