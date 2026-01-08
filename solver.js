@@ -211,14 +211,32 @@ class CalendarPuzzle {
     }
 
     solveBacktrack(month, day) {
+        // Create cell index mapping for bitboard
+        const cellToIndex = new Map();
+        const indexToCell = [];
+        let idx = 0;
+        for (const cellKey of this.validCells) {
+            cellToIndex.set(cellKey, idx);
+            const [r, c] = cellKey.split(',').map(Number);
+            indexToCell.push([r, c]);
+            idx++;
+        }
+
         const monthCell = this.months[month];
         const dayCell = this.days[day];
-        const forbidden = new Set([
-            `${monthCell[0]},${monthCell[1]}`,
-            `${dayCell[0]},${dayCell[1]}`
-        ]);
+        const forbiddenIdx1 = cellToIndex.get(`${monthCell[0]},${monthCell[1]}`);
+        const forbiddenIdx2 = cellToIndex.get(`${dayCell[0]},${dayCell[1]}`);
 
-        // Generate all valid placements for each piece
+        // Create forbidden bitboard
+        let forbiddenBits = 0n;
+        forbiddenBits |= (1n << BigInt(forbiddenIdx1));
+        forbiddenBits |= (1n << BigInt(forbiddenIdx2));
+
+        // Target: all valid cells except forbidden ones
+        const totalCells = this.validCells.size;
+        const targetBits = (1n << BigInt(totalCells)) - 1n - forbiddenBits;
+
+        // Generate all valid placements with bitboards
         const allPlacements = [];
         for (let pieceIdx = 0; pieceIdx < this.pieces.length; pieceIdx++) {
             const piece = this.pieces[pieceIdx];
@@ -230,16 +248,24 @@ class CalendarPuzzle {
                         const cells = orientation.map(([dr, dc]) => [r + dr, c + dc]);
                         const cellKeys = cells.map(([row, col]) => `${row},${col}`);
 
+                        // Check if all cells are valid and not forbidden
                         const allValid = cellKeys.every(key =>
-                            this.validCells.has(key) && !forbidden.has(key)
+                            this.validCells.has(key) && !key.includes(`${monthCell[0]},${monthCell[1]}`) && !key.includes(`${dayCell[0]},${dayCell[1]}`)
                         );
 
                         if (allValid) {
+                            // Convert to bitboard
+                            let bitboard = 0n;
+                            for (const key of cellKeys) {
+                                const index = cellToIndex.get(key);
+                                bitboard |= (1n << BigInt(index));
+                            }
+
                             placements.push({
                                 pieceIdx,
                                 r,
                                 c,
-                                cells: new Set(cellKeys),
+                                bits: bitboard,
                                 cellsList: cells
                             });
                         }
@@ -249,27 +275,20 @@ class CalendarPuzzle {
             allPlacements.push(placements);
         }
 
-        // Backtracking search
-        const covered = new Set();
+        // Backtracking search with bitboards
+        let coveredBits = 0n;
         const solution = [];
 
         const backtrack = (pieceIdx) => {
             if (pieceIdx === this.pieces.length) {
-                // Check if all cells are covered
-                const target = new Set([...this.validCells].filter(key => !forbidden.has(key)));
-                return covered.size === target.size &&
-                       [...covered].every(key => target.has(key));
+                return coveredBits === targetBits;
             }
 
             for (const placement of allPlacements[pieceIdx]) {
-                // Check if cells are free
-                const hasOverlap = [...placement.cells].some(key =>
-                    covered.has(key) || forbidden.has(key)
-                );
-
-                if (!hasOverlap) {
-                    // Try placing this piece
-                    placement.cells.forEach(key => covered.add(key));
+                // Check overlap using bitwise AND - O(1) operation!
+                if ((coveredBits & placement.bits) === 0n) {
+                    // No overlap, place the piece
+                    coveredBits |= placement.bits;
                     solution.push({
                         pieceIdx: placement.pieceIdx,
                         r: placement.r,
@@ -284,7 +303,7 @@ class CalendarPuzzle {
                     }
 
                     // Backtrack
-                    placement.cells.forEach(key => covered.delete(key));
+                    coveredBits ^= placement.bits;
                     solution.pop();
                 }
             }
