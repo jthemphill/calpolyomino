@@ -57,7 +57,7 @@
             color: #333;
         }
 
-        select {
+        select, input[type="date"] {
             width: 100%;
             padding: 12px;
             border: 2px solid #e0e0e0;
@@ -68,11 +68,11 @@
             transition: border-color 0.3s;
         }
 
-        select:hover {
+        select:hover, input[type="date"]:hover {
             border-color: #667eea;
         }
 
-        select:focus {
+        select:focus, input[type="date"]:focus {
             outline: none;
             border-color: #667eea;
         }
@@ -203,28 +203,8 @@
 
         <div class="controls">
             <div class="control-group">
-                <label for="month">Month:</label>
-                <select id="month">
-                    <option value="Jan">January</option>
-                    <option value="Feb">February</option>
-                    <option value="Mar">March</option>
-                    <option value="Apr">April</option>
-                    <option value="May">May</option>
-                    <option value="Jun">June</option>
-                    <option value="Jul">July</option>
-                    <option value="Aug">August</option>
-                    <option value="Sep">September</option>
-                    <option value="Oct">October</option>
-                    <option value="Nov">November</option>
-                    <option value="Dec">December</option>
-                </select>
-            </div>
-
-            <div class="control-group">
-                <label for="day">Day:</label>
-                <select id="day">
-                    <!-- Days will be populated by JavaScript -->
-                </select>
+                <label for="date">Date:</label>
+                <input type="date" id="date">
             </div>
 
             <button id="solve-btn">Solve Puzzle</button>
@@ -239,20 +219,23 @@
 
     <script src="solver.js"></script>
     <script>
-        // Populate days dropdown
-        const daySelect = document.getElementById('day');
-        for (let i = 1; i <= 31; i++) {
-            const option = document.createElement('option');
-            option.value = i;
-            option.textContent = i;
-            daySelect.appendChild(option);
-        }
-
         // Set to today's date
         const today = new Date();
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        document.getElementById('month').value = months[today.getMonth()];
-        document.getElementById('day').value = today.getDate();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        document.getElementById('date').value = `${year}-${month}-${day}`;
+
+        // Helper function to parse date input
+        function parseDateInput() {
+            const dateInput = document.getElementById('date').value;
+            const date = new Date(dateInput + 'T00:00:00'); // Add time to avoid timezone issues
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return {
+                month: months[date.getMonth()],
+                day: date.getDate()
+            };
+        }
 
         const puzzle = new CalendarPuzzle();
 
@@ -361,12 +344,12 @@
         }
 
         // Initial render
-        renderBoard(document.getElementById('month').value, parseInt(document.getElementById('day').value), null);
+        const initialDate = parseDateInput();
+        renderBoard(initialDate.month, initialDate.day, null);
 
         // Solve button handler
         document.getElementById('solve-btn').addEventListener('click', () => {
-            const month = document.getElementById('month').value;
-            const day = parseInt(document.getElementById('day').value);
+            const { month, day } = parseDateInput();
             const btn = document.getElementById('solve-btn');
 
             btn.disabled = true;
