@@ -75,7 +75,7 @@ class CalendarPuzzle:
             ##
             """,
 
-            # Piece 1: L pentomino
+            # Piece 1: Tall L pentomino
             """
             #
             #
@@ -83,18 +83,18 @@ class CalendarPuzzle:
             ##
             """,
 
-            # Piece 2: T pentomino
+            # Piece 2: P pentomino
             """
-            ###
-             #
-             #
+            ##
+            ##
+            #
             """,
 
-            # Piece 3: P pentomino (F pentomino variant)
+            # Piece 3: S pentomino
             """
              ##
-            ##
              #
+            ##
             """,
 
             # Piece 4: Y pentomino
@@ -105,18 +105,18 @@ class CalendarPuzzle:
              #
             """,
 
-            # Piece 5: U pentomino (V pentomino variant)
+            # Piece 5: C pentomino
             """
-            #
-            #
-            ###
-            """,
-
-            # Piece 6: W pentomino
-            """
+            ##
             #
             ##
-             ##
+            """,
+
+            # Piece 6: r pentomino
+            """
+            ###
+            #
+            #
             """,
 
             # Piece 7: N pentomino
@@ -132,7 +132,28 @@ class CalendarPuzzle:
 
     def parse_ascii_piece(self, ascii_art: str) -> List[Tuple[int, int]]:
         """Parse an ASCII art piece definition into coordinates."""
-        lines = ascii_art.strip().split('\n')
+        # Split into lines without stripping first (to preserve relative indentation)
+        lines = ascii_art.split('\n')
+
+        # Remove leading/trailing empty lines
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+
+        if not lines:
+            return []
+
+        # Find minimum indentation across all non-empty lines
+        non_empty_lines = [line for line in lines if line.strip()]
+        if not non_empty_lines:
+            return []
+        min_indent = min(len(line) - len(line.lstrip()) for line in non_empty_lines)
+
+        # Remove common indentation and trailing whitespace
+        lines = [line[min_indent:].rstrip() if len(line) >= min_indent else line.rstrip()
+                 for line in lines]
+
         coords = []
         for row, line in enumerate(lines):
             for col, char in enumerate(line):
@@ -154,7 +175,7 @@ class CalendarPuzzle:
                 grid[r][c] = '#'
             print(f"\nPiece {idx} ({len(piece)} cells):")
             for row in grid:
-                print("  " + "".join(row))
+                print("  " + "".join(row).rstrip())
         print("=" * 50)
 
     def normalize_piece(self, piece: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
