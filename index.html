@@ -143,18 +143,21 @@
         .cell.empty {
             background: #f0f0f0;
             border: 2px solid #e0e0e0;
+            font-size: 11px;
+            color: #999;
         }
 
         .cell.target {
             background: #333;
             color: white;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         .cell.piece {
             color: white;
             font-weight: bold;
             border: 2px solid rgba(0,0,0,0.1);
+            font-size: 11px;
         }
 
         .status {
@@ -183,36 +186,13 @@
             border: 1px solid #bee5eb;
         }
 
-        .month-labels, .day-labels {
-            display: grid;
-            grid-template-columns: repeat(6, 1fr);
-            gap: 4px;
-            margin-bottom: 4px;
-        }
-
-        .day-labels {
-            grid-template-columns: repeat(7, 1fr);
-        }
-
-        .label {
-            text-align: center;
-            font-size: 11px;
-            font-weight: 600;
-            color: #666;
-            padding: 4px;
-        }
-
         @media (max-width: 600px) {
             h1 {
                 font-size: 1.8em;
             }
 
             .cell {
-                font-size: 12px;
-            }
-
-            .label {
-                font-size: 9px;
+                font-size: 10px;
             }
         }
     </style>
@@ -286,6 +266,29 @@
             const boardDiv = document.getElementById('board');
             boardDiv.innerHTML = '';
 
+            // Define month and day labels for each position
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const cellLabels = Array(7).fill(null).map(() => Array(7).fill(''));
+
+            // Month labels (rows 0-1)
+            for (let i = 0; i < 6; i++) {
+                cellLabels[0][i] = months[i];
+                cellLabels[1][i] = months[i + 6];
+            }
+
+            // Day labels (rows 2-6)
+            let dayNum = 1;
+            for (let r = 2; r < 6; r++) {
+                for (let c = 0; c < 7; c++) {
+                    cellLabels[r][c] = dayNum.toString();
+                    dayNum++;
+                }
+            }
+            for (let c = 0; c < 3; c++) {
+                cellLabels[6][c] = dayNum.toString();
+                dayNum++;
+            }
+
             // Create board data structure
             const board = Array(7).fill(null).map(() => Array(7).fill(null));
 
@@ -293,9 +296,9 @@
             for (let r = 0; r < 7; r++) {
                 for (let c = 0; c < 7; c++) {
                     if (!puzzle.validCells.has(`${r},${c}`)) {
-                        board[r][c] = { type: 'invalid' };
+                        board[r][c] = { type: 'invalid', label: '' };
                     } else {
-                        board[r][c] = { type: 'empty' };
+                        board[r][c] = { type: 'empty', label: cellLabels[r][c] };
                     }
                 }
             }
@@ -314,81 +317,15 @@
                         board[r][c] = {
                             type: 'piece',
                             pieceIdx,
-                            label: pieceIdx
+                            label: cellLabels[r][c]
                         };
                     }
                 }
             }
 
-            // Month labels
-            const monthLabels = document.createElement('div');
-            monthLabels.className = 'month-labels';
-            ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'].forEach(m => {
-                const label = document.createElement('div');
-                label.className = 'label';
-                label.textContent = m;
-                monthLabels.appendChild(label);
-            });
-            boardDiv.appendChild(monthLabels);
-
-            // Month row 1
-            let row = document.createElement('div');
-            row.className = 'row';
-            for (let c = 0; c < 6; c++) {
-                row.appendChild(createCell(board[0][c]));
-            }
-            row.appendChild(createCell({ type: 'invalid' }));
-            boardDiv.appendChild(row);
-
-            // Month labels row 2
-            const monthLabels2 = document.createElement('div');
-            monthLabels2.className = 'month-labels';
-            ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].forEach(m => {
-                const label = document.createElement('div');
-                label.className = 'label';
-                label.textContent = m;
-                monthLabels2.appendChild(label);
-            });
-            boardDiv.appendChild(monthLabels2);
-
-            // Month row 2
-            row = document.createElement('div');
-            row.className = 'row';
-            for (let c = 0; c < 6; c++) {
-                row.appendChild(createCell(board[1][c]));
-            }
-            row.appendChild(createCell({ type: 'invalid' }));
-            boardDiv.appendChild(row);
-
-            // Day rows
-            let dayNum = 1;
-            for (let r = 2; r < 7; r++) {
-                // Day labels
-                if (r < 6) {
-                    const dayLabels = document.createElement('div');
-                    dayLabels.className = 'day-labels';
-                    for (let i = 0; i < 7; i++) {
-                        const label = document.createElement('div');
-                        label.className = 'label';
-                        label.textContent = dayNum + i;
-                        dayLabels.appendChild(label);
-                    }
-                    boardDiv.appendChild(dayLabels);
-                    dayNum += 7;
-                } else {
-                    const dayLabels = document.createElement('div');
-                    dayLabels.className = 'month-labels';
-                    for (let i = 0; i < 3; i++) {
-                        const label = document.createElement('div');
-                        label.className = 'label';
-                        label.textContent = 29 + i;
-                        dayLabels.appendChild(label);
-                    }
-                    boardDiv.appendChild(dayLabels);
-                }
-
-                // Day cells
-                row = document.createElement('div');
+            // Render all rows
+            for (let r = 0; r < 7; r++) {
+                const row = document.createElement('div');
                 row.className = 'row';
                 for (let c = 0; c < 7; c++) {
                     row.appendChild(createCell(board[r][c]));
