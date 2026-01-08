@@ -2,6 +2,8 @@
 
 A browser-based solver for the daily calendar puzzle using JavaScript.
 
+**[Try it live!](https://jthemphill.github.io/calpolyomino/)**
+
 ## The Puzzle
 
 The calendar puzzle is a physical puzzle with:
@@ -95,6 +97,20 @@ The solver displays:
 - Each piece marked with its number and unique color
 - Target cells marked in black
 - Success/error status messages
+
+## Deployment
+
+This project automatically deploys to GitHub Pages via GitHub Actions. Any push to the `main` branch will trigger a new deployment.
+
+The live site is available at: https://jthemphill.github.io/calpolyomino/
+
+### Setting up GitHub Pages
+
+To enable GitHub Pages for this repository:
+1. Go to repository Settings
+2. Navigate to Pages (under Code and automation)
+3. Set Source to "GitHub Actions"
+4. The workflow will automatically deploy on the next push to `main`
 
 ## Browser Compatibility
 
