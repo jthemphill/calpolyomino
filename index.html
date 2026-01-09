@@ -79,7 +79,6 @@
 
       .cell {
         aspect-ratio: 1;
-        cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -87,6 +86,10 @@
         font-weight: 600;
         font-size: 14px;
         transition: all 0.3s;
+      }
+
+      .cell[role="button"] {
+        cursor: pointer;
       }
 
       .cell.invalid {
@@ -98,7 +101,6 @@
         border: 2px solid #e0e0e0;
         font-size: 11px;
         color: #999;
-        cursor: pointer;
       }
 
       .cell.empty:hover {
@@ -117,7 +119,6 @@
         background: #333;
         color: white;
         font-size: 11px;
-        cursor: pointer;
       }
 
       .cell:hover {
