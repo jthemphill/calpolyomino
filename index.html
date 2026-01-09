@@ -494,15 +494,17 @@
         worker.postMessage({ month: currentMonth, day: currentDay });
       }
 
-      // Handle worker messages
+      const durFormatter = new Intl.DurationFormat("en-US", { style: "short" });
       worker.addEventListener("message", (e) => {
-        const { success, solution, month, day, error } = e.data;
+        const { success, solution, month, day, solveTimeMs, error } = e.data;
 
         if (success) {
           if (solution) {
             renderBoard(month, day, solution);
             showStatus(
-              `✓ Solution found! ${solution.length} pieces placed.`,
+              `✓ Solution found in ${durFormatter.format({
+                milliseconds: Math.floor(solveTimeMs),
+              })}.`,
               "success"
             );
           } else {

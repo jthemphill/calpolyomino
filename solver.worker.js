@@ -437,10 +437,12 @@ self.addEventListener("message", (/** @type {MessageEvent} */ e) => {
 
   try {
     // Solve the puzzle
+    const startTime = performance.now();
     const solution = puzzle.solveBacktrack(
       /** @type {Month} */ (month),
       Number(day)
     );
+    const solveTimeMs = performance.now() - startTime;
 
     // Send result back to main thread
     self.postMessage({
@@ -448,6 +450,7 @@ self.addEventListener("message", (/** @type {MessageEvent} */ e) => {
       solution,
       month,
       day,
+      solveTimeMs,
     });
   } catch (error) {
     // Send error back to main thread
