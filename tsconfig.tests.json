@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"],
+    "types": ["@types/bun", "@playwright/test"]
+  },
+  "include": ["playwright.config.ts", "playwright-tests/**/*.ts"],
+  "exclude": []
+}

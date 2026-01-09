@@ -112,6 +112,52 @@ To enable GitHub Pages for this repository:
 3. Set Source to "GitHub Actions"
 4. The workflow will automatically deploy on the next push to `main`
 
+## Testing
+
+This project uses Playwright for end-to-end testing. To run tests:
+
+```bash
+# Install dependencies (first time only)
+bun install
+bunx playwright install chromium
+
+# Run tests
+bun run test
+
+# Run tests in headed mode (see the browser)
+bunx playwright test --headed
+
+# Run tests in UI mode (interactive)
+bunx playwright test --ui
+```
+
+**Note:** Use `bun run test` (not `bun test`). The `bun test` command runs Bun's built-in test runner which is incompatible with Playwright.
+
+## Development
+
+### Type Checking
+
+This project uses TypeScript for type checking JavaScript files via JSDoc annotations:
+
+```bash
+# Run type checking
+bun run typecheck
+```
+
+The project uses TypeScript project references with separate configurations:
+- `tsconfig.base.json` - Shared base configuration
+- `tsconfig.worker.json` - Configuration for Web Worker files (`*.worker.js`)
+- `tsconfig.tests.json` - Configuration for Playwright tests
+
+### Continuous Integration
+
+The project uses GitHub Actions for CI. On every push and pull request:
+- Type checking runs across all project files
+- Playwright tests run in Chromium
+- Test reports are uploaded as artifacts if tests fail
+
+See [.github/workflows/ci.yml](.github/workflows/ci.yml) for the full CI configuration.
+
 ## Browser Compatibility
 
 Works in all modern browsers:

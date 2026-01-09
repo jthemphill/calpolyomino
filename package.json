@@ -1,0 +1,17 @@
+{
+  "name": "calendar-puzzle",
+  "private": true,
+  "scripts": {
+    "test": "bunx playwright test",
+    "typecheck": "tsc --build --force"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/bun": "latest",
+    "playwright": "^1.57.0",
+    "serve": "^14.2.5"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
