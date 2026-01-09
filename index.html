@@ -179,8 +179,20 @@
     </div>
 
     <script>
+      /**
+       * Get the current date - uses test stub if available, otherwise real date
+       * @returns {Date}
+       */
+      function getCurrentDate() {
+        // Check if a test stub is available
+        if (window.__TEST_DATE_STUB__) {
+          return new Date(window.__TEST_DATE_STUB__);
+        }
+        return new Date();
+      }
+
       // Set to today's date
-      const today = new Date();
+      const today = getCurrentDate();
       const monthNames = [
         "Jan",
         "Feb",

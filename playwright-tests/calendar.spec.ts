@@ -1,7 +1,21 @@
 import { test, expect } from "@playwright/test";
 
+// Extend Window interface for test stub
+declare global {
+  interface Window {
+    __TEST_DATE_STUB__?: string;
+  }
+}
+
 test.describe("Calendar Puzzle Clickable Cells", () => {
   test.beforeEach(async ({ page }) => {
+    // Mock Date to always return January 8, 2026
+    // This ensures tests are deterministic regardless of when they run
+    await page.addInitScript(() => {
+      // Set a date stub that the application will use
+      window.__TEST_DATE_STUB__ = '2026-01-08T12:00:00Z';
+    });
+
     await page.goto("/");
     // Wait for initial puzzle to be solved
     await page.waitForSelector(".status", { timeout: 10000 });
