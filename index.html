@@ -120,12 +120,23 @@
         border: 2px solid #e0e0e0;
         font-size: 11px;
         color: #999;
+        cursor: pointer;
+      }
+
+      .cell.empty:hover {
+        background: #e8e8e8;
+        border-color: #667eea;
       }
 
       .cell.target {
         background: #333;
         color: white;
         font-size: 11px;
+        cursor: pointer;
+      }
+
+      .cell.target:hover {
+        background: #444;
       }
 
       .cell.piece {
@@ -176,13 +187,6 @@
     <div class="container">
       <h1>📅 Calendar Puzzle Solver</h1>
 
-      <div class="controls">
-        <div class="control-group">
-          <label for="date">Date:</label>
-          <input type="date" id="date" />
-        </div>
-      </div>
-
       <div class="board-container">
         <h2 style="text-align: center; margin-bottom: 15px; color: #333">
           Solution
@@ -195,34 +199,24 @@
     <script>
       // Set to today's date
       const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, "0");
-      const day = String(today.getDate()).padStart(2, "0");
-      document.getElementById("date").value = `${year}-${month}-${day}`;
+      const monthNames = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
 
-      // Helper function to parse date input
-      function parseDateInput() {
-        const dateInput = document.getElementById("date").value;
-        const date = new Date(dateInput + "T00:00:00"); // Add time to avoid timezone issues
-        const months = [
-          "Jan",
-          "Feb",
-          "Mar",
-          "Apr",
-          "May",
-          "Jun",
-          "Jul",
-          "Aug",
-          "Sep",
-          "Oct",
-          "Nov",
-          "Dec",
-        ];
-        return {
-          month: months[date.getMonth()],
-          day: date.getDate(),
-        };
-      }
+      // Current selected date
+      let currentMonth = monthNames[today.getMonth()];
+      let currentDay = today.getDate();
 
       // Create WebWorker for puzzle solving
       const worker = new Worker("solver.worker.js");
@@ -336,7 +330,14 @@
             if (!validCells.has(`${r},${c}`)) {
               board[r][c] = { type: "invalid", label: "" };
             } else {
-              board[r][c] = { type: "empty", label: cellLabels[r][c] };
+              const isMonth = r < 2; // Rows 0-1 are months
+              const isDay = r >= 2; // Rows 2-6 are days
+              board[r][c] = {
+                type: "empty",
+                label: cellLabels[r][c],
+                isMonth,
+                isDay,
+              };
             }
           }
         }
@@ -344,18 +345,32 @@
         // Mark target cells
         const monthCell = months[month];
         const dayCell = days[day];
-        board[monthCell[0]][monthCell[1]] = { type: "target", label: month };
-        board[dayCell[0]][dayCell[1]] = { type: "target", label: day };
+        board[monthCell[0]][monthCell[1]] = {
+          type: "target",
+          label: month,
+          isMonth: true,
+          isDay: false,
+        };
+        board[dayCell[0]][dayCell[1]] = {
+          type: "target",
+          label: day,
+          isMonth: false,
+          isDay: true,
+        };
 
         // Place pieces if solution exists
         if (solution) {
           for (const placement of solution) {
             const { pieceIdx, cells } = placement;
             for (const [r, c] of cells) {
+              const isMonth = r < 2; // Preserve month/day info
+              const isDay = r >= 2;
               board[r][c] = {
                 type: "piece",
                 pieceIdx,
                 label: cellLabels[r][c],
+                isMonth,
+                isDay,
               };
             }
           }
@@ -380,13 +395,56 @@
           cell.classList.add("invalid");
         } else if (data.type === "empty") {
           cell.classList.add("empty");
+          cell.textContent = data.label;
+
+          // Add click handler for month/day cells
+          if (data.isMonth) {
+            cell.addEventListener("click", () => {
+              currentMonth = data.label;
+              solvePuzzle();
+            });
+          } else if (data.isDay) {
+            cell.addEventListener("click", () => {
+              currentDay = parseInt(data.label);
+              solvePuzzle();
+            });
+          }
         } else if (data.type === "target") {
           cell.classList.add("target");
           cell.textContent = data.label;
+
+          // Add click handler for target cells
+          if (data.isMonth) {
+            cell.addEventListener("click", () => {
+              const monthIndex = monthNames.indexOf(currentMonth);
+              currentMonth = monthNames[(monthIndex + 1) % 12];
+              solvePuzzle();
+            });
+          } else if (data.isDay) {
+            cell.addEventListener("click", () => {
+              currentDay = (currentDay % 31) + 1;
+              solvePuzzle();
+            });
+          }
         } else if (data.type === "piece") {
           cell.classList.add("piece");
           cell.style.background = pieceColors[data.pieceIdx];
           cell.textContent = data.label;
+
+          // Add click handler for piece cells too!
+          if (data.isMonth) {
+            cell.style.cursor = "pointer";
+            cell.addEventListener("click", () => {
+              currentMonth = data.label;
+              solvePuzzle();
+            });
+          } else if (data.isDay) {
+            cell.style.cursor = "pointer";
+            cell.addEventListener("click", () => {
+              currentDay = parseInt(data.label);
+              solvePuzzle();
+            });
+          }
         }
 
         return cell;
@@ -398,14 +456,12 @@
         statusDiv.className = `status ${type}`;
       }
 
-      // Function to solve puzzle
       function solvePuzzle() {
-        const { month, day } = parseDateInput();
         showStatus("Searching for solution...", "info");
-        renderBoard(month, day, null);
+        renderBoard(currentMonth, currentDay, null);
 
         // Send message to worker
-        worker.postMessage({ month, day });
+        worker.postMessage({ month: currentMonth, day: currentDay });
       }
 
       // Handle worker messages
@@ -432,14 +488,7 @@
         }
       });
 
-      // Initial render
-      const initialDate = parseDateInput();
-      renderBoard(initialDate.month, initialDate.day, null);
-
-      // Listen for date changes
-      document.getElementById("date").addEventListener("change", solvePuzzle);
-
-      // Auto-solve on load
+      // Initial render and auto-solve on load
       solvePuzzle();
     </script>
   </body>

@@ -1,0 +1,13 @@
+{
+  "name": "calendar-puzzle",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/bun": "latest",
+    "playwright": "^1.57.0",
+    "serve": "^14.2.5"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
