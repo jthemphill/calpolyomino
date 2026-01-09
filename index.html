@@ -58,29 +58,6 @@
         color: #333;
       }
 
-      select,
-      input[type="date"] {
-        width: 100%;
-        padding: 12px;
-        border: 2px solid #e0e0e0;
-        border-radius: 8px;
-        font-size: 16px;
-        background: white;
-        cursor: pointer;
-        transition: border-color 0.3s;
-      }
-
-      select:hover,
-      input[type="date"]:hover {
-        border-color: #667eea;
-      }
-
-      select:focus,
-      input[type="date"]:focus {
-        outline: none;
-        border-color: #667eea;
-      }
-
       .board-container {
         background: white;
         border-radius: 15px;
@@ -88,7 +65,7 @@
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
       }
 
-      .board {
+      #board {
         display: grid;
         gap: 4px;
         margin-top: 20px;
@@ -102,6 +79,7 @@
 
       .cell {
         aspect-ratio: 1;
+        cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -128,6 +106,13 @@
         border-color: #667eea;
       }
 
+      .cell.empty:focus,
+      .cell.target:focus,
+      .cell.piece:focus {
+        outline: 3px solid #667eea;
+        outline-offset: 2px;
+      }
+
       .cell.target {
         background: #333;
         color: white;
@@ -135,8 +120,8 @@
         cursor: pointer;
       }
 
-      .cell.target:hover {
-        background: #444;
+      .cell:hover {
+        filter: brightness(96%);
       }
 
       .cell.piece {
@@ -188,9 +173,6 @@
       <h1>📅 Calendar Puzzle Solver</h1>
 
       <div class="board-container">
-        <h2 style="text-align: center; margin-bottom: 15px; color: #333">
-          Solution
-        </h2>
         <div id="board"></div>
         <div id="status"></div>
       </div>
@@ -387,6 +369,33 @@
         }
       }
 
+      /**
+       * Helper function to make a cell interactive with accessibility support
+       * @param {HTMLElement} cell - The cell element
+       * @param {string} label - The ARIA label
+       * @param {Function} onClick - The click handler
+       * @param {boolean} isSelected - Whether this is the currently selected cell
+       */
+      function makeInteractive(cell, label, onClick, isSelected = false) {
+        cell.setAttribute("role", "button");
+        cell.setAttribute("aria-label", label);
+        cell.setAttribute("tabindex", "0");
+        if (isSelected) {
+          cell.setAttribute("aria-pressed", "true");
+        }
+
+        // Click handler
+        cell.addEventListener("click", onClick);
+
+        // Keyboard handler
+        cell.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClick();
+          }
+        });
+      }
+
       function createCell(data) {
         const cell = document.createElement("div");
         cell.className = "cell";
@@ -399,12 +408,12 @@
 
           // Add click handler for month/day cells
           if (data.isMonth) {
-            cell.addEventListener("click", () => {
+            makeInteractive(cell, `Select ${data.label}`, () => {
               currentMonth = data.label;
               solvePuzzle();
             });
           } else if (data.isDay) {
-            cell.addEventListener("click", () => {
+            makeInteractive(cell, `Select day ${data.label}`, () => {
               currentDay = parseInt(data.label);
               solvePuzzle();
             });
@@ -415,16 +424,26 @@
 
           // Add click handler for target cells
           if (data.isMonth) {
-            cell.addEventListener("click", () => {
-              const monthIndex = monthNames.indexOf(currentMonth);
-              currentMonth = monthNames[(monthIndex + 1) % 12];
-              solvePuzzle();
-            });
+            makeInteractive(
+              cell,
+              `Current month: ${data.label}. Click to cycle to next month.`,
+              () => {
+                const monthIndex = monthNames.indexOf(currentMonth);
+                currentMonth = monthNames[(monthIndex + 1) % 12];
+                solvePuzzle();
+              },
+              true
+            );
           } else if (data.isDay) {
-            cell.addEventListener("click", () => {
-              currentDay = (currentDay % 31) + 1;
-              solvePuzzle();
-            });
+            makeInteractive(
+              cell,
+              `Current day: ${data.label}. Click to cycle to next day.`,
+              () => {
+                currentDay = (currentDay % 31) + 1;
+                solvePuzzle();
+              },
+              true
+            );
           }
         } else if (data.type === "piece") {
           cell.classList.add("piece");
@@ -433,14 +452,12 @@
 
           // Add click handler for piece cells too!
           if (data.isMonth) {
-            cell.style.cursor = "pointer";
-            cell.addEventListener("click", () => {
+            makeInteractive(cell, `Select month ${data.label}`, () => {
               currentMonth = data.label;
               solvePuzzle();
             });
           } else if (data.isDay) {
-            cell.style.cursor = "pointer";
-            cell.addEventListener("click", () => {
+            makeInteractive(cell, `Select day ${data.label}`, () => {
               currentDay = parseInt(data.label);
               solvePuzzle();
             });
