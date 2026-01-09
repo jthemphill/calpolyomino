@@ -378,7 +378,7 @@ class CalendarPuzzle {
 
     // Backtracking search with bitboards
     let coveredBits = 0n;
-    /** @type {Solution[]} */
+    /** @type {Placement[]} */
     const solution = [];
 
     /**
@@ -399,14 +399,7 @@ class CalendarPuzzle {
         if ((coveredBits & placement.bits) === 0n) {
           // No overlap, place the piece
           coveredBits |= placement.bits;
-          solution.push({
-            pieceIdx: placement.pieceIdx,
-            r: placement.r,
-            c: placement.c,
-            cells: placement.cellsList
-              .slice()
-              .sort((a, b) => (a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1])),
-          });
+          solution.push(placement);
 
           if (backtrack(pieceIdx + 1)) {
             return true;
@@ -422,7 +415,14 @@ class CalendarPuzzle {
     };
 
     if (backtrack(0)) {
-      return solution;
+      return solution.map((placement) => ({
+        pieceIdx: placement.pieceIdx,
+        r: placement.r,
+        c: placement.c,
+        cells: placement.cellsList
+          .slice()
+          .sort((a, b) => (a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1])),
+      }));
     }
     return null;
   }
