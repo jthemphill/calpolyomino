@@ -322,8 +322,8 @@ class CalendarPuzzle {
     forbiddenBits |= 1n << BigInt(forbiddenIdx2);
 
     // Target: all valid cells except forbidden ones
-    const totalCells = this.validCells.size;
-    const targetBits = (1n << BigInt(totalCells)) - 1n - forbiddenBits;
+    const targetBits =
+      (1n << BigInt(this.validCells.size)) - 1n - forbiddenBits;
 
     // Generate all valid placements with bitboards
     /** @type {Placement[][]} */
@@ -337,18 +337,21 @@ class CalendarPuzzle {
       for (const orientation of this.getAllOrientations(piece)) {
         for (let r = 0; r < this.rows; r++) {
           for (let c = 0; c < this.cols; c++) {
-            /** @type {Cell[]} */
-            const cells = orientation.map(([dr, dc]) => /** @type {[number, number]} */ ([r + dr, c + dc]));
-            const cellKeys = cells.map(([row, col]) => `${row},${col}`);
+            const cells = orientation.map(
+              /** @type {(d: [number, number]) => Cell} */
+              ([dr, dc]) => [r + dr, c + dc]
+            );
+            const cellKeys = cells.map(
+              /** @type {(cell: Cell) => `${number},${number}`} */
+              ([row, col]) => `${row},${col}`
+            );
 
             // Check if all cells are valid and not forbidden
             const monthKey = `${monthCell[0]},${monthCell[1]}`;
             const dayKey = `${dayCell[0]},${dayCell[1]}`;
             const allValid = cellKeys.every(
               (key) =>
-                this.validCells.has(/** @type {`${number},${number}`} */ (key)) &&
-                key !== monthKey &&
-                key !== dayKey
+                this.validCells.has(key) && key !== monthKey && key !== dayKey
             );
 
             if (allValid) {
@@ -400,9 +403,9 @@ class CalendarPuzzle {
             pieceIdx: placement.pieceIdx,
             r: placement.r,
             c: placement.c,
-            cells: placement.cellsList.slice().sort((a, b) =>
-              a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1]
-            ),
+            cells: placement.cellsList
+              .slice()
+              .sort((a, b) => (a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1])),
           });
 
           if (backtrack(pieceIdx + 1)) {
@@ -434,7 +437,10 @@ self.addEventListener("message", (/** @type {MessageEvent} */ e) => {
 
   try {
     // Solve the puzzle
-    const solution = puzzle.solveBacktrack(/** @type {Month} */ (month), Number(day));
+    const solution = puzzle.solveBacktrack(
+      /** @type {Month} */ (month),
+      Number(day)
+    );
 
     // Send result back to main thread
     self.postMessage({

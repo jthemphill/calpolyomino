@@ -1,5 +1,6 @@
 {
   "name": "calendar-puzzle",
+  "type": "module",
   "private": true,
   "scripts": {
     "test": "bunx playwright test",
