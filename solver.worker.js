@@ -1,3 +1,5 @@
+// @ts-check
+
 /**
  * @typedef {[number, number]} Cell
  */
@@ -13,6 +15,20 @@
  *   c: number,
  *   cells: Cell[],
  * }} Solution
+ */
+
+/**
+ * @typedef {{
+ *   pieceIdx: number,
+ *   r: number,
+ *   c: number,
+ *   bits: bigint,
+ *   cellsList: Cell[],
+ * }} Placement
+ */
+
+/**
+ * @typedef {'Jan' | 'Feb' | 'Mar' | 'Apr' | 'May' | 'Jun' | 'Jul' | 'Aug' | 'Sep' | 'Oct' | 'Nov' | 'Dec'} Month
  */
 
 /**
@@ -67,6 +83,7 @@ class CalendarPuzzle {
     }
 
     // Month positions
+    /** @type {Record<Month, [number, number]>} */
     this.months = {
       Jan: [0, 0],
       Feb: [0, 1],
@@ -161,15 +178,19 @@ class CalendarPuzzle {
     this.pieces = pieceAscii.map((p) => this.parseAsciiPiece(p));
   }
 
+  /**
+   * @param {string} asciiArt
+   * @returns {Piece}
+   */
   parseAsciiPiece(asciiArt) {
     // Split into lines
     let lines = asciiArt.split("\n");
 
     // Remove leading/trailing empty lines
-    while (lines.length > 0 && !lines[0].trim()) {
+    while (lines.length > 0 && !lines[0]?.trim()) {
       lines.shift();
     }
-    while (lines.length > 0 && !lines[lines.length - 1].trim()) {
+    while (lines.length > 0 && !lines[lines.length - 1]?.trim()) {
       lines.pop();
     }
 
@@ -193,26 +214,38 @@ class CalendarPuzzle {
         : line.trimEnd()
     );
 
+    /** @type {Piece} */
     const coords = [];
     for (let row = 0; row < lines.length; row++) {
-      for (let col = 0; col < lines[row].length; col++) {
-        if (lines[row][col] === "#") {
-          coords.push([row, col]);
+      for (let col = 0; col < (lines[row]?.length ?? 0); col++) {
+        if (lines[row]?.[col] === "#") {
+          coords.push(/** @type {[number, number]} */ ([row, col]));
         }
       }
     }
     return coords;
   }
 
+  /**
+   * @param {Piece} piece
+   * @returns {Piece}
+   */
   normalizePiece(piece) {
     if (piece.length === 0) return piece;
     const minRow = Math.min(...piece.map(([r, c]) => r));
     const minCol = Math.min(...piece.map(([r, c]) => c));
     return piece
-      .map(([r, c]) => [r - minRow, c - minCol])
+      .map(
+        /** @type {(coords: [number, number]) => [number, number]} */
+        ([r, c]) => [r - minRow, c - minCol]
+      )
       .sort((a, b) => (a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1]));
   }
 
+  /**
+   * @param {Piece} piece
+   * @returns {Piece}
+   */
   rotate90(piece) {
     return piece.map(([r, c]) => [c, -r]);
   }
@@ -253,9 +286,9 @@ class CalendarPuzzle {
 
   /**
    *
-   * @param {string} month Month to
-   * @param {string} day
-   * @returns {Solution | null}
+   * @param {Month} month Month to solve for
+   * @param {number} day Day to solve for
+   * @returns {Solution[] | null}
    */
   solveBacktrack(month, day) {
     // Create cell index mapping for bitboard
@@ -271,8 +304,17 @@ class CalendarPuzzle {
 
     const monthCell = this.months[month];
     const dayCell = this.days[day];
+
+    if (!monthCell || !dayCell) {
+      throw new Error(`Invalid month or day: ${month}, ${day}`);
+    }
+
     const forbiddenIdx1 = cellToIndex.get(`${monthCell[0]},${monthCell[1]}`);
     const forbiddenIdx2 = cellToIndex.get(`${dayCell[0]},${dayCell[1]}`);
+
+    if (forbiddenIdx1 === undefined || forbiddenIdx2 === undefined) {
+      throw new Error(`Invalid cell indices for month or day`);
+    }
 
     // Create forbidden bitboard
     let forbiddenBits = 0n;
@@ -284,23 +326,29 @@ class CalendarPuzzle {
     const targetBits = (1n << BigInt(totalCells)) - 1n - forbiddenBits;
 
     // Generate all valid placements with bitboards
+    /** @type {Placement[][]} */
     const allPlacements = [];
     for (let pieceIdx = 0; pieceIdx < this.pieces.length; pieceIdx++) {
       const piece = this.pieces[pieceIdx];
+      if (!piece) continue;
+      /** @type {Placement[]} */
       const placements = [];
 
       for (const orientation of this.getAllOrientations(piece)) {
         for (let r = 0; r < this.rows; r++) {
           for (let c = 0; c < this.cols; c++) {
-            const cells = orientation.map(([dr, dc]) => [r + dr, c + dc]);
+            /** @type {Cell[]} */
+            const cells = orientation.map(([dr, dc]) => /** @type {[number, number]} */ ([r + dr, c + dc]));
             const cellKeys = cells.map(([row, col]) => `${row},${col}`);
 
             // Check if all cells are valid and not forbidden
+            const monthKey = `${monthCell[0]},${monthCell[1]}`;
+            const dayKey = `${dayCell[0]},${dayCell[1]}`;
             const allValid = cellKeys.every(
               (key) =>
-                this.validCells.has(key) &&
-                !key.includes(`${monthCell[0]},${monthCell[1]}`) &&
-                !key.includes(`${dayCell[0]},${dayCell[1]}`)
+                this.validCells.has(/** @type {`${number},${number}`} */ (key)) &&
+                key !== monthKey &&
+                key !== dayKey
             );
 
             if (allValid) {
@@ -327,11 +375,12 @@ class CalendarPuzzle {
 
     // Backtracking search with bitboards
     let coveredBits = 0n;
+    /** @type {Solution[]} */
     const solution = [];
 
     /**
      *
-     * @param {bigint} pieceIdx The piece to place
+     * @param {number} pieceIdx The piece to place
      * @returns {boolean}
      */
     const backtrack = (pieceIdx) => {
@@ -339,7 +388,10 @@ class CalendarPuzzle {
         return coveredBits === targetBits;
       }
 
-      for (const placement of allPlacements[pieceIdx]) {
+      const piecePlacements = allPlacements[pieceIdx];
+      if (!piecePlacements) return false;
+
+      for (const placement of piecePlacements) {
         // Check overlap
         if ((coveredBits & placement.bits) === 0n) {
           // No overlap, place the piece
@@ -348,7 +400,7 @@ class CalendarPuzzle {
             pieceIdx: placement.pieceIdx,
             r: placement.r,
             c: placement.c,
-            cells: placement.cellsList.sort((a, b) =>
+            cells: placement.cellsList.slice().sort((a, b) =>
               a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1]
             ),
           });
@@ -377,12 +429,12 @@ class CalendarPuzzle {
 const puzzle = new CalendarPuzzle();
 
 // Listen for messages from main thread
-self.addEventListener("message", (e) => {
+self.addEventListener("message", (/** @type {MessageEvent} */ e) => {
   const { month, day } = e.data;
 
   try {
     // Solve the puzzle
-    const solution = puzzle.solveBacktrack(month, day);
+    const solution = puzzle.solveBacktrack(/** @type {Month} */ (month), Number(day));
 
     // Send result back to main thread
     self.postMessage({
@@ -393,9 +445,10 @@ self.addEventListener("message", (e) => {
     });
   } catch (error) {
     // Send error back to main thread
+    const errorMessage = error instanceof Error ? error.message : String(error);
     self.postMessage({
       success: false,
-      error: error.message,
+      error: errorMessage,
       month,
       day,
     });

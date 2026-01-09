@@ -112,6 +112,27 @@ To enable GitHub Pages for this repository:
 3. Set Source to "GitHub Actions"
 4. The workflow will automatically deploy on the next push to `main`
 
+## Testing
+
+This project uses Playwright for end-to-end testing. To run tests:
+
+```bash
+# Install dependencies (first time only)
+bun install
+bunx playwright install chromium
+
+# Run tests
+bun run test
+
+# Run tests in headed mode (see the browser)
+bunx playwright test --headed
+
+# Run tests in UI mode (interactive)
+bunx playwright test --ui
+```
+
+**Note:** Use `bun run test` (not `bun test`). The `bun test` command runs Bun's built-in test runner which is incompatible with Playwright.
+
 ## Browser Compatibility
 
 Works in all modern browsers:
