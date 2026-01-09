@@ -133,6 +133,31 @@ bunx playwright test --ui
 
 **Note:** Use `bun run test` (not `bun test`). The `bun test` command runs Bun's built-in test runner which is incompatible with Playwright.
 
+## Development
+
+### Type Checking
+
+This project uses TypeScript for type checking JavaScript files via JSDoc annotations:
+
+```bash
+# Run type checking
+bun run typecheck
+```
+
+The project uses TypeScript project references with separate configurations:
+- `tsconfig.base.json` - Shared base configuration
+- `tsconfig.worker.json` - Configuration for Web Worker files (`*.worker.js`)
+- `tsconfig.tests.json` - Configuration for Playwright tests
+
+### Continuous Integration
+
+The project uses GitHub Actions for CI. On every push and pull request:
+- Type checking runs across all project files
+- Playwright tests run in Chromium
+- Test reports are uploaded as artifacts if tests fail
+
+See [.github/workflows/ci.yml](.github/workflows/ci.yml) for the full CI configuration.
+
 ## Browser Compatibility
 
 Works in all modern browsers:
