@@ -1,387 +1,446 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Calendar Puzzle Solver</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
 
-        .container {
-            max-width: 800px;
-            width: 100%;
-        }
+      .container {
+        max-width: 800px;
+        width: 100%;
+      }
 
+      h1 {
+        color: white;
+        text-align: center;
+        margin-bottom: 30px;
+        font-size: 2.5em;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .controls {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 25px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      }
+
+      .control-group {
+        margin-bottom: 20px;
+      }
+
+      .control-group:last-child {
+        margin-bottom: 0;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      select,
+      input[type="date"] {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 16px;
+        background: white;
+        cursor: pointer;
+        transition: border-color 0.3s;
+      }
+
+      select:hover,
+      input[type="date"]:hover {
+        border-color: #667eea;
+      }
+
+      select:focus,
+      input[type="date"]:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      .board-container {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      }
+
+      .board {
+        display: grid;
+        gap: 4px;
+        margin-top: 20px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+      }
+
+      .cell {
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 14px;
+        transition: all 0.3s;
+      }
+
+      .cell.invalid {
+        background: transparent;
+      }
+
+      .cell.empty {
+        background: #f0f0f0;
+        border: 2px solid #e0e0e0;
+        font-size: 11px;
+        color: #999;
+      }
+
+      .cell.target {
+        background: #333;
+        color: white;
+        font-size: 11px;
+      }
+
+      .cell.piece {
+        color: white;
+        font-weight: bold;
+        border: 2px solid rgba(0, 0, 0, 0.1);
+        font-size: 11px;
+      }
+
+      .status {
+        text-align: center;
+        padding: 15px;
+        margin-top: 20px;
+        border-radius: 8px;
+        font-weight: 600;
+      }
+
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .status.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      @media (max-width: 600px) {
         h1 {
-            color: white;
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 2.5em;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-        }
-
-        .controls {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-
-        .control-group {
-            margin-bottom: 20px;
-        }
-
-        .control-group:last-child {
-            margin-bottom: 0;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #333;
-        }
-
-        select, input[type="date"] {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 16px;
-            background: white;
-            cursor: pointer;
-            transition: border-color 0.3s;
-        }
-
-        select:hover, input[type="date"]:hover {
-            border-color: #667eea;
-        }
-
-        select:focus, input[type="date"]:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        button {
-            width: 100%;
-            padding: 15px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            margin-top: 15px;
-        }
-
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        button:active {
-            transform: translateY(0);
-        }
-
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .board-container {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-
-        .board {
-            display: grid;
-            gap: 4px;
-            margin-top: 20px;
-        }
-
-        .row {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 4px;
+          font-size: 1.8em;
         }
 
         .cell {
-            aspect-ratio: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 14px;
-            transition: all 0.3s;
+          font-size: 10px;
         }
-
-        .cell.invalid {
-            background: transparent;
-        }
-
-        .cell.empty {
-            background: #f0f0f0;
-            border: 2px solid #e0e0e0;
-            font-size: 11px;
-            color: #999;
-        }
-
-        .cell.target {
-            background: #333;
-            color: white;
-            font-size: 11px;
-        }
-
-        .cell.piece {
-            color: white;
-            font-weight: bold;
-            border: 2px solid rgba(0,0,0,0.1);
-            font-size: 11px;
-        }
-
-        .status {
-            text-align: center;
-            padding: 15px;
-            margin-top: 20px;
-            border-radius: 8px;
-            font-weight: 600;
-        }
-
-        .status.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .status.info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
-
-        @media (max-width: 600px) {
-            h1 {
-                font-size: 1.8em;
-            }
-
-            .cell {
-                font-size: 10px;
-            }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <h1>📅 Calendar Puzzle Solver</h1>
+      <h1>📅 Calendar Puzzle Solver</h1>
 
-        <div class="controls">
-            <div class="control-group">
-                <label for="date">Date:</label>
-                <input type="date" id="date">
-            </div>
-
-            <button id="solve-btn">Solve Puzzle</button>
+      <div class="controls">
+        <div class="control-group">
+          <label for="date">Date:</label>
+          <input type="date" id="date" />
         </div>
+      </div>
 
-        <div class="board-container">
-            <h2 style="text-align: center; margin-bottom: 15px; color: #333;">Solution</h2>
-            <div id="board"></div>
-            <div id="status"></div>
-        </div>
+      <div class="board-container">
+        <h2 style="text-align: center; margin-bottom: 15px; color: #333">
+          Solution
+        </h2>
+        <div id="board"></div>
+        <div id="status"></div>
+      </div>
     </div>
 
-    <script src="solver.js"></script>
     <script>
-        // Set to today's date
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        document.getElementById('date').value = `${year}-${month}-${day}`;
+      // Set to today's date
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, "0");
+      const day = String(today.getDate()).padStart(2, "0");
+      document.getElementById("date").value = `${year}-${month}-${day}`;
 
-        // Helper function to parse date input
-        function parseDateInput() {
-            const dateInput = document.getElementById('date').value;
-            const date = new Date(dateInput + 'T00:00:00'); // Add time to avoid timezone issues
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return {
-                month: months[date.getMonth()],
-                day: date.getDate()
-            };
-        }
-
-        const puzzle = new CalendarPuzzle();
-
-        // Piece colors
-        const pieceColors = [
-            '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A',
-            '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'
+      // Helper function to parse date input
+      function parseDateInput() {
+        const dateInput = document.getElementById("date").value;
+        const date = new Date(dateInput + "T00:00:00"); // Add time to avoid timezone issues
+        const months = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
         ];
+        return {
+          month: months[date.getMonth()],
+          day: date.getDate(),
+        };
+      }
 
-        function renderBoard(month, day, solution) {
-            const boardDiv = document.getElementById('board');
-            boardDiv.innerHTML = '';
+      // Create WebWorker for puzzle solving
+      const worker = new Worker("solver.worker.js");
 
-            // Define month and day labels for each position
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const cellLabels = Array(7).fill(null).map(() => Array(7).fill(''));
+      // Track valid cells for rendering (from CalendarPuzzle)
+      const validCells = new Set();
+      for (let row = 0; row < 2; row++) {
+        for (let col = 0; col < 6; col++) {
+          validCells.add(`${row},${col}`);
+        }
+      }
+      for (let row = 2; row < 6; row++) {
+        for (let col = 0; col < 7; col++) {
+          validCells.add(`${row},${col}`);
+        }
+      }
+      for (let col = 0; col < 3; col++) {
+        validCells.add(`6,${col}`);
+      }
 
-            // Month labels (rows 0-1)
-            for (let i = 0; i < 6; i++) {
-                cellLabels[0][i] = months[i];
-                cellLabels[1][i] = months[i + 6];
-            }
+      const months = {
+        Jan: [0, 0],
+        Feb: [0, 1],
+        Mar: [0, 2],
+        Apr: [0, 3],
+        May: [0, 4],
+        Jun: [0, 5],
+        Jul: [1, 0],
+        Aug: [1, 1],
+        Sep: [1, 2],
+        Oct: [1, 3],
+        Nov: [1, 4],
+        Dec: [1, 5],
+      };
 
-            // Day labels (rows 2-6)
-            let dayNum = 1;
-            for (let r = 2; r < 6; r++) {
-                for (let c = 0; c < 7; c++) {
-                    cellLabels[r][c] = dayNum.toString();
-                    dayNum++;
-                }
-            }
-            for (let c = 0; c < 3; c++) {
-                cellLabels[6][c] = dayNum.toString();
-                dayNum++;
-            }
+      const days = {};
+      let dayNum = 1;
+      for (let row = 2; row < 6; row++) {
+        for (let col = 0; col < 7; col++) {
+          days[dayNum] = [row, col];
+          dayNum++;
+        }
+      }
+      for (let col = 0; col < 3; col++) {
+        days[dayNum] = [6, col];
+        dayNum++;
+      }
 
-            // Create board data structure
-            const board = Array(7).fill(null).map(() => Array(7).fill(null));
+      // Piece colors
+      const pieceColors = [
+        "#FF6B6B",
+        "#4ECDC4",
+        "#45B7D1",
+        "#FFA07A",
+        "#98D8C8",
+        "#F7DC6F",
+        "#BB8FCE",
+        "#85C1E2",
+      ];
 
-            // Mark invalid cells
-            for (let r = 0; r < 7; r++) {
-                for (let c = 0; c < 7; c++) {
-                    if (!puzzle.validCells.has(`${r},${c}`)) {
-                        board[r][c] = { type: 'invalid', label: '' };
-                    } else {
-                        board[r][c] = { type: 'empty', label: cellLabels[r][c] };
-                    }
-                }
-            }
+      function renderBoard(month, day, solution) {
+        const boardDiv = document.getElementById("board");
+        boardDiv.innerHTML = "";
 
-            // Mark target cells
-            const monthCell = puzzle.months[month];
-            const dayCell = puzzle.days[day];
-            board[monthCell[0]][monthCell[1]] = { type: 'target', label: month };
-            board[dayCell[0]][dayCell[1]] = { type: 'target', label: day };
+        // Define month and day labels for each position
+        const monthLabels = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        const cellLabels = Array(7)
+          .fill(null)
+          .map(() => Array(7).fill(""));
 
-            // Place pieces if solution exists
-            if (solution) {
-                for (const placement of solution) {
-                    const { pieceIdx, cells } = placement;
-                    for (const [r, c] of cells) {
-                        board[r][c] = {
-                            type: 'piece',
-                            pieceIdx,
-                            label: cellLabels[r][c]
-                        };
-                    }
-                }
-            }
-
-            // Render all rows
-            for (let r = 0; r < 7; r++) {
-                const row = document.createElement('div');
-                row.className = 'row';
-                for (let c = 0; c < 7; c++) {
-                    row.appendChild(createCell(board[r][c]));
-                }
-                boardDiv.appendChild(row);
-            }
+        // Month labels (rows 0-1)
+        for (let i = 0; i < 6; i++) {
+          cellLabels[0][i] = monthLabels[i];
+          cellLabels[1][i] = monthLabels[i + 6];
         }
 
-        function createCell(data) {
-            const cell = document.createElement('div');
-            cell.className = 'cell';
+        // Day labels (rows 2-6)
+        let dayNum = 1;
+        for (let r = 2; r < 6; r++) {
+          for (let c = 0; c < 7; c++) {
+            cellLabels[r][c] = dayNum.toString();
+            dayNum++;
+          }
+        }
+        for (let c = 0; c < 3; c++) {
+          cellLabels[6][c] = dayNum.toString();
+          dayNum++;
+        }
 
-            if (data.type === 'invalid') {
-                cell.classList.add('invalid');
-            } else if (data.type === 'empty') {
-                cell.classList.add('empty');
-            } else if (data.type === 'target') {
-                cell.classList.add('target');
-                cell.textContent = data.label;
-            } else if (data.type === 'piece') {
-                cell.classList.add('piece');
-                cell.style.background = pieceColors[data.pieceIdx];
-                cell.textContent = data.label;
+        // Create board data structure
+        const board = Array(7)
+          .fill(null)
+          .map(() => Array(7).fill(null));
+
+        // Mark invalid cells
+        for (let r = 0; r < 7; r++) {
+          for (let c = 0; c < 7; c++) {
+            if (!validCells.has(`${r},${c}`)) {
+              board[r][c] = { type: "invalid", label: "" };
+            } else {
+              board[r][c] = { type: "empty", label: cellLabels[r][c] };
             }
-
-            return cell;
+          }
         }
 
-        function showStatus(message, type) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.textContent = message;
-            statusDiv.className = `status ${type}`;
+        // Mark target cells
+        const monthCell = months[month];
+        const dayCell = days[day];
+        board[monthCell[0]][monthCell[1]] = { type: "target", label: month };
+        board[dayCell[0]][dayCell[1]] = { type: "target", label: day };
+
+        // Place pieces if solution exists
+        if (solution) {
+          for (const placement of solution) {
+            const { pieceIdx, cells } = placement;
+            for (const [r, c] of cells) {
+              board[r][c] = {
+                type: "piece",
+                pieceIdx,
+                label: cellLabels[r][c],
+              };
+            }
+          }
         }
 
-        // Initial render
-        const initialDate = parseDateInput();
-        renderBoard(initialDate.month, initialDate.day, null);
+        // Render all rows
+        for (let r = 0; r < 7; r++) {
+          const row = document.createElement("div");
+          row.className = "row";
+          for (let c = 0; c < 7; c++) {
+            row.appendChild(createCell(board[r][c]));
+          }
+          boardDiv.appendChild(row);
+        }
+      }
 
-        // Solve button handler
-        document.getElementById('solve-btn').addEventListener('click', () => {
-            const { month, day } = parseDateInput();
-            const btn = document.getElementById('solve-btn');
+      function createCell(data) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
 
-            btn.disabled = true;
-            btn.textContent = 'Solving...';
-            showStatus('Searching for solution...', 'info');
+        if (data.type === "invalid") {
+          cell.classList.add("invalid");
+        } else if (data.type === "empty") {
+          cell.classList.add("empty");
+        } else if (data.type === "target") {
+          cell.classList.add("target");
+          cell.textContent = data.label;
+        } else if (data.type === "piece") {
+          cell.classList.add("piece");
+          cell.style.background = pieceColors[data.pieceIdx];
+          cell.textContent = data.label;
+        }
 
-            // Use setTimeout to allow UI to update
-            setTimeout(() => {
-                try {
-                    const solution = puzzle.solveBacktrack(month, day);
+        return cell;
+      }
 
-                    if (solution) {
-                        renderBoard(month, day, solution);
-                        showStatus(`✓ Solution found! ${solution.length} pieces placed.`, 'success');
-                    } else {
-                        renderBoard(month, day, null);
-                        showStatus('✗ No solution found. The puzzle may not be solvable for this date.', 'error');
-                    }
-                } catch (error) {
-                    showStatus(`Error: ${error.message}`, 'error');
-                    console.error(error);
-                } finally {
-                    btn.disabled = false;
-                    btn.textContent = 'Solve Puzzle';
-                }
-            }, 100);
-        });
+      function showStatus(message, type) {
+        const statusDiv = document.getElementById("status");
+        statusDiv.textContent = message;
+        statusDiv.className = `status ${type}`;
+      }
 
-        // Auto-solve on load
-        setTimeout(() => {
-            document.getElementById('solve-btn').click();
-        }, 500);
+      // Function to solve puzzle
+      function solvePuzzle() {
+        const { month, day } = parseDateInput();
+        showStatus("Searching for solution...", "info");
+        renderBoard(month, day, null);
+
+        // Send message to worker
+        worker.postMessage({ month, day });
+      }
+
+      // Handle worker messages
+      worker.addEventListener("message", (e) => {
+        const { success, solution, month, day, error } = e.data;
+
+        if (success) {
+          if (solution) {
+            renderBoard(month, day, solution);
+            showStatus(
+              `✓ Solution found! ${solution.length} pieces placed.`,
+              "success"
+            );
+          } else {
+            renderBoard(month, day, null);
+            showStatus(
+              "✗ No solution found. The puzzle may not be solvable for this date.",
+              "error"
+            );
+          }
+        } else {
+          showStatus(`Error: ${error}`, "error");
+          console.error("Worker error:", error);
+        }
+      });
+
+      // Initial render
+      const initialDate = parseDateInput();
+      renderBoard(initialDate.month, initialDate.day, null);
+
+      // Listen for date changes
+      document.getElementById("date").addEventListener("change", solvePuzzle);
+
+      // Auto-solve on load
+      solvePuzzle();
     </script>
-</body>
+  </body>
 </html>
