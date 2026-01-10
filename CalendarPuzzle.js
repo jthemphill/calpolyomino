@@ -176,6 +176,32 @@ class CalendarPuzzle {
     ];
 
     this.pieces = pieceAscii.map((p) => this.parseAsciiPiece(p));
+
+    // Pre-compute all orientations for all pieces (avoids recomputation)
+    /** @type {Piece[][]} */
+    this.cachedOrientations = this.pieces.map((p) =>
+      this.getAllOrientations(p)
+    );
+
+    // Pre-compute cell index mapping for bitboard operations
+    /** @type {Map<`${number},${number}`, number>} */
+    this.cellToIndex = new Map();
+    /** @type {[number, number][]} */
+    this.indexToCell = [];
+    let cellIdx = 0;
+    for (const cellKey of this.validCells) {
+      this.cellToIndex.set(cellKey, cellIdx);
+      const parts = cellKey.split(",").map(Number);
+      const r = parts[0];
+      const c = parts[1];
+      if (r !== undefined && c !== undefined) {
+        this.indexToCell.push([r, c]);
+      }
+      cellIdx++;
+    }
+
+    // Pre-compute all possible placements for all pieces (this is the big optimization!)
+    this.globalPlacements = this.precomputeAllPlacements();
   }
 
   /**
@@ -260,81 +286,71 @@ class CalendarPuzzle {
   }
 
   /**
+   * Fast numeric hash for piece deduplication
+   * @param {Piece} piece
+   * @returns {number}
+   */
+  hashPiece(piece) {
+    let hash = 0;
+    for (const [r, c] of piece) {
+      hash = (hash * 97 + r * 10 + c) | 0;
+    }
+    return hash;
+  }
+
+  /**
    * @param {Piece} piece
    * @returns {Piece[]}
    */
   getAllOrientations(piece) {
-    const orientations = new Set();
+    /** @type {Map<number, Piece>} */
+    const orientations = new Map();
     let current = piece;
 
     // Try all 4 rotations
     for (let i = 0; i < 4; i++) {
       const normalized = this.normalizePiece(current);
-      orientations.add(JSON.stringify(normalized));
+      const hash = this.hashPiece(normalized);
+      if (!orientations.has(hash)) {
+        orientations.set(hash, normalized);
+      }
 
       // Also try flipped version
       const flipped = this.flipHorizontal(current);
       const normalizedFlipped = this.normalizePiece(flipped);
-      orientations.add(JSON.stringify(normalizedFlipped));
+      const hashFlipped = this.hashPiece(normalizedFlipped);
+      if (!orientations.has(hashFlipped)) {
+        orientations.set(hashFlipped, normalizedFlipped);
+      }
 
       // Rotate for next iteration
       current = this.rotate90(current);
     }
 
-    return Array.from(orientations).map((s) => JSON.parse(s));
+    return Array.from(orientations.values());
   }
 
   /**
-   *
-   * @param {Month} month Month to solve for
-   * @param {number} day Day to solve for
-   * @returns {Solution[] | null}
+   * Pre-compute all possible placements for all pieces across the entire board.
+   * This is done once at construction time rather than every solve.
+   * @returns {Placement[][]}
    */
-  solveBacktrack(month, day) {
-    // Create cell index mapping for bitboard
-    const cellToIndex = new Map();
-    const indexToCell = [];
-    let idx = 0;
-    for (const cellKey of this.validCells) {
-      cellToIndex.set(cellKey, idx);
-      const [r, c] = cellKey.split(",").map(Number);
-      indexToCell.push([r, c]);
-      idx++;
-    }
-
-    const monthCell = this.months[month];
-    const dayCell = this.days[day];
-
-    if (!monthCell || !dayCell) {
-      throw new Error(`Invalid month or day: ${month}, ${day}`);
-    }
-
-    const forbiddenIdx1 = cellToIndex.get(`${monthCell[0]},${monthCell[1]}`);
-    const forbiddenIdx2 = cellToIndex.get(`${dayCell[0]},${dayCell[1]}`);
-
-    if (forbiddenIdx1 === undefined || forbiddenIdx2 === undefined) {
-      throw new Error(`Invalid cell indices for month or day`);
-    }
-
-    // Create forbidden bitboard
-    let forbiddenBits = 0n;
-    forbiddenBits |= 1n << BigInt(forbiddenIdx1);
-    forbiddenBits |= 1n << BigInt(forbiddenIdx2);
-
-    // Target: all valid cells except forbidden ones
-    const targetBits =
-      (1n << BigInt(this.validCells.size)) - 1n - forbiddenBits;
-
-    // Generate all valid placements with bitboards
+  precomputeAllPlacements() {
     /** @type {Placement[][]} */
     const allPlacements = [];
+
     for (let pieceIdx = 0; pieceIdx < this.pieces.length; pieceIdx++) {
       const piece = this.pieces[pieceIdx];
       if (!piece) continue;
+
       /** @type {Placement[]} */
       const placements = [];
 
-      for (const orientation of this.getAllOrientations(piece)) {
+      // Use cached orientations instead of recomputing
+      const orientations = this.cachedOrientations[pieceIdx];
+      if (!orientations) continue;
+
+      for (const orientation of orientations) {
         for (let r = 0; r < this.rows; r++) {
           for (let c = 0; c < this.cols; c++) {
             const cells = orientation.map(
@@ -346,20 +362,17 @@ class CalendarPuzzle {
               ([row, col]) => `${row},${col}`
             );
 
-            // Check if all cells are valid and not forbidden
-            const monthKey = `${monthCell[0]},${monthCell[1]}`;
-            const dayKey = `${dayCell[0]},${dayCell[1]}`;
-            const allValid = cellKeys.every(
-              (key) =>
-                this.validCells.has(key) && key !== monthKey && key !== dayKey
-            );
+            // Check if all cells are valid
+            const allValid = cellKeys.every((key) => this.validCells.has(key));
 
             if (allValid) {
               // Convert to bitboard
               let bitboard = 0n;
               for (const key of cellKeys) {
-                const index = cellToIndex.get(key);
-                bitboard |= 1n << BigInt(index);
+                const index = this.cellToIndex.get(key);
+                if (index !== undefined) {
+                  bitboard |= 1n << BigInt(index);
+                }
               }
 
               placements.push({
@@ -376,6 +389,68 @@ class CalendarPuzzle {
       allPlacements.push(placements);
     }
 
+    return allPlacements;
+  }
+
+  /**
+   * Compute dynamic piece ordering based on placement constraints.
+   * Places most constrained pieces first to prune search space earlier.
+   * @param {Placement[][]} filteredPlacements
+   * @returns {number[]}
+   */
+  computePieceOrder(filteredPlacements) {
+    // Count valid placements per piece
+    const counts = filteredPlacements.map((placements, idx) => ({
+      idx,
+      count: placements.length,
+    }));
+
+    // Sort by count ascending (most constrained first)
+    counts.sort((a, b) => a.count - b.count);
+
+    return counts.map((c) => c.idx);
+  }
+
+  /**
+   *
+   * @param {Month} month Month to solve for
+   * @param {number} day Day to solve for
+   * @returns {Solution[] | null}
+   */
+  solveBacktrack(month, day) {
+    const monthCell = this.months[month];
+    const dayCell = this.days[day];
+
+    if (!monthCell || !dayCell) {
+      throw new Error(`Invalid month or day: ${month}, ${day}`);
+    }
+
+    const forbiddenIdx1 = this.cellToIndex.get(
+      `${monthCell[0]},${monthCell[1]}`
+    );
+    const forbiddenIdx2 = this.cellToIndex.get(`${dayCell[0]},${dayCell[1]}`);
+
+    if (forbiddenIdx1 === undefined || forbiddenIdx2 === undefined) {
+      throw new Error(`Invalid cell indices for month or day`);
+    }
+
+    // Create forbidden bitboard
+    let forbiddenBits = 0n;
+    forbiddenBits |= 1n << BigInt(forbiddenIdx1);
+    forbiddenBits |= 1n << BigInt(forbiddenIdx2);
+
+    // Target: all valid cells except forbidden ones
+    const targetBits =
+      (1n << BigInt(this.validCells.size)) - 1n - forbiddenBits;
+
+    // Filter pre-computed placements by forbidden bits (fast bitwise check)
+    const allPlacements = this.globalPlacements.map((placements) =>
+      placements.filter((p) => (p.bits & forbiddenBits) === 0n)
+    );
+
+    // Compute piece ordering (most constrained first for better pruning)
+    const pieceOrder = this.computePieceOrder(allPlacements);
+
     // Backtracking search with bitboards
     let coveredBits = 0n;
     /** @type {Placement[]} */
@@ -383,13 +458,17 @@ class CalendarPuzzle {
 
     /**
      *
-     * @param {number} pieceIdx The piece to place
+     * @param {number} depth The current depth in the search tree
      * @returns {boolean}
      */
-    const backtrack = (pieceIdx) => {
-      if (pieceIdx === this.pieces.length) {
+    const backtrack = (depth) => {
+      if (depth === this.pieces.length) {
         return coveredBits === targetBits;
       }
+
+      // Use dynamic piece ordering
+      const pieceIdx = pieceOrder[depth];
+      if (pieceIdx === undefined) return false;
 
       const piecePlacements = allPlacements[pieceIdx];
       if (!piecePlacements) return false;
@@ -401,7 +480,7 @@ class CalendarPuzzle {
           coveredBits |= placement.bits;
           solution.push(placement);
 
-          if (backtrack(pieceIdx + 1)) {
+          if (backtrack(depth + 1)) {
             return true;
           }
 

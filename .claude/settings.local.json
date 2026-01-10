@@ -4,7 +4,9 @@
       "Bash(bun test:*)",
       "Bash(bun run test:*)",
       "Bash(bun:*)",
-      "Bash(bunx tsc:*)"
+      "Bash(bunx tsc:*)",
+      "Bash(ls:*)",
+      "Bash(git log:*)"
     ]
   }
 }
