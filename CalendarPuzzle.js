@@ -177,7 +177,7 @@ class CalendarPuzzle {
 
     this.pieces = pieceAscii.map((p) => this.parseAsciiPiece(p));
 
-    // Pre-compute all orientations for all pieces (avoids recomputation)
+    // Pre-compute all orientations for all pieces
     /** @type {Piece[][]} */
     this.cachedOrientations = this.pieces.map((p) =>
       this.getAllOrientations(p)
@@ -200,7 +200,7 @@ class CalendarPuzzle {
       cellIdx++;
     }
 
-    // Pre-compute all possible placements for all pieces (this is the big optimization!)
+    // Pre-compute all possible placements for all pieces
     this.globalPlacements = this.precomputeAllPlacements();
   }
 
@@ -446,7 +446,7 @@ class CalendarPuzzle {
     const targetBits =
       (1n << BigInt(this.validCells.size)) - 1n - forbiddenBits;
 
-    // Filter pre-computed placements by forbidden bits (fast bitwise check)
+    // Filter pre-computed placements by forbidden bits
     const allPlacements = this.globalPlacements.map((placements) =>
       placements.filter((p) => (p.bits & forbiddenBits) === 0n)
     );
