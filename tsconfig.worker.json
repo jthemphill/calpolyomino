@@ -3,6 +3,6 @@
   "compilerOptions": {
     "lib": ["ESNext", "WebWorker"]
   },
-  "include": ["*.worker.js"],
+  "include": ["*.js"],
   "exclude": []
 }

@@ -214,7 +214,9 @@
       let currentDay = today.getDate();
 
       // Create WebWorker for puzzle solving
-      const worker = new Worker("solver.worker.js");
+      const worker = new Worker("./solver.worker.js", {
+        type: "module",
+      });
 
       // Track valid cells for rendering (from CalendarPuzzle)
       const validCells = new Set();
