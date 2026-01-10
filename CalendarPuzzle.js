@@ -286,16 +286,19 @@ class CalendarPuzzle {
   }
 
   /**
-   * Fast numeric hash for piece deduplication
+   * Convert piece coordinates to a bitboard representation for deduplication.
+   * Uses the piece's shape as a unique identifier.
    * @param {Piece} piece
-   * @returns {number}
+   * @returns {bigint}
    */
-  hashPiece(piece) {
-    let hash = 0;
+  pieceToBitboard(piece) {
+    let bitboard = 0n;
     for (const [r, c] of piece) {
-      hash = (hash * 97 + r * 10 + c) | 0;
+      // Encode position in bitboard (assuming piece fits in 8x8 grid)
+      const bitIndex = r * 8 + c;
+      bitboard |= 1n << BigInt(bitIndex);
     }
-    return hash;
+    return bitboard;
   }
 
   /**
@@ -303,24 +306,24 @@ class CalendarPuzzle {
    * @returns {Piece[]}
    */
   getAllOrientations(piece) {
-    /** @type {Map<number, Piece>} */
+    /** @type {Map<bigint, Piece>} */
     const orientations = new Map();
     let current = piece;
 
     // Try all 4 rotations
     for (let i = 0; i < 4; i++) {
       const normalized = this.normalizePiece(current);
-      const hash = this.hashPiece(normalized);
-      if (!orientations.has(hash)) {
-        orientations.set(hash, normalized);
+      const bitboard = this.pieceToBitboard(normalized);
+      if (!orientations.has(bitboard)) {
+        orientations.set(bitboard, normalized);
       }
 
       // Also try flipped version
       const flipped = this.flipHorizontal(current);
       const normalizedFlipped = this.normalizePiece(flipped);
-      const hashFlipped = this.hashPiece(normalizedFlipped);
-      if (!orientations.has(hashFlipped)) {
-        orientations.set(hashFlipped, normalizedFlipped);
+      const bitboardFlipped = this.pieceToBitboard(normalizedFlipped);
+      if (!orientations.has(bitboardFlipped)) {
+        orientations.set(bitboardFlipped, normalizedFlipped);
       }
 
       // Rotate for next iteration
