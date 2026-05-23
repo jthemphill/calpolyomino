@@ -3926,4 +3926,56 @@ run();
 
 // end include: postamble.js
 
-export default Module;
+export const KISSAT_SAT = 10;
+export const KISSAT_UNSAT = 20;
+
+export type KissatSolver = number;
+
+export async function waitForKissatInitialized(): Promise<void> {
+  if (Module["calledRun"]) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    Module["onRuntimeInitialized"] = resolve;
+  });
+}
+
+export function kissatInit(): KissatSolver {
+  return _kissat_init();
+}
+
+export function kissatRelease(solver: KissatSolver): void {
+  _kissat_release(solver);
+}
+
+export function kissatAdd(solver: KissatSolver, literal: number): void {
+  _kissat_add(solver, literal);
+}
+
+export function kissatSolve(solver: KissatSolver): number {
+  return _kissat_solve(solver);
+}
+
+export function kissatValue(solver: KissatSolver, literal: number): number {
+  return _kissat_value(solver, literal);
+}
+
+export function kissatSetOption(
+  solver: KissatSolver,
+  name: string,
+  value: number
+): number {
+  return Number(
+    ccall(
+      "kissat_set_option",
+      "number",
+      ["number", "string", "number"],
+      [solver, name, value]
+    )
+  );
+}
+
+export function kissatSetQuiet(solver: KissatSolver): void {
+  kissatSetOption(solver, "quiet", 1);
+}
