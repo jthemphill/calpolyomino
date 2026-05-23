@@ -121,8 +121,9 @@ if (ENVIRONMENT_IS_NODE) {
   // Node.js workers are detected as a combination of ENVIRONMENT_IS_WORKER and
   // ENVIRONMENT_IS_NODE.
   if (ENVIRONMENT_IS_WORKER) {
-    // Check worker, not web, since window could be polyfilled
-    scriptDirectory = self.location.href;
+    // In an imported module worker, self.location points at the top-level
+    // worker script, not this Emscripten module.
+    scriptDirectory = import.meta.url;
   } else if (typeof document != "undefined" && document.currentScript) {
     // web
     scriptDirectory = document.currentScript.src;
@@ -3929,43 +3930,65 @@ run();
 export const KISSAT_SAT = 10;
 export const KISSAT_UNSAT = 20;
 
-export type KissatSolver = number;
+/** @typedef {number} KissatSolver */
 
-export async function waitForKissatInitialized(): Promise<void> {
+/** @returns {Promise<void>} */
+export async function waitForKissatInitialized() {
   if (Module["calledRun"]) {
     return;
   }
 
-  await new Promise<void>((resolve) => {
+  await new Promise((resolve) => {
     Module["onRuntimeInitialized"] = resolve;
   });
 }
 
-export function kissatInit(): KissatSolver {
+/** @returns {KissatSolver} */
+export function kissatInit() {
   return _kissat_init();
 }
 
-export function kissatRelease(solver: KissatSolver): void {
+/** @param {KissatSolver} solver */
+export function kissatRelease(solver) {
   _kissat_release(solver);
 }
 
-export function kissatAdd(solver: KissatSolver, literal: number): void {
+/**
+ * @param {KissatSolver} solver
+ * @param {number} literal
+ */
+export function kissatAdd(solver, literal) {
   _kissat_add(solver, literal);
 }
 
-export function kissatSolve(solver: KissatSolver): number {
+/**
+ * @param {KissatSolver} solver
+ * @returns {number}
+ */
+export function kissatSolve(solver) {
   return _kissat_solve(solver);
 }
 
-export function kissatValue(solver: KissatSolver, literal: number): number {
+/**
+ * @param {KissatSolver} solver
+ * @param {number} literal
+ * @returns {number}
+ */
+export function kissatValue(solver, literal) {
   return _kissat_value(solver, literal);
 }
 
+/**
+ * @param {KissatSolver} solver
+ * @param {string} name
+ * @param {number} value
+ * @returns {number}
+ */
 export function kissatSetOption(
-  solver: KissatSolver,
-  name: string,
-  value: number
-): number {
+  solver,
+  name,
+  value
+) {
   return Number(
     ccall(
       "kissat_set_option",
@@ -3976,6 +3999,7 @@ export function kissatSetOption(
   );
 }
 
-export function kissatSetQuiet(solver: KissatSolver): void {
+/** @param {KissatSolver} solver */
+export function kissatSetQuiet(solver) {
   kissatSetOption(solver, "quiet", 1);
 }

@@ -1,20 +1,27 @@
 // @ts-check
 
 import { CalendarPuzzle } from "./CalendarPuzzle.js";
+import {
+  solveKissat,
+  waitForKissatInitialized,
+} from "./CalendarPuzzleKissat.js";
 
 /** @typedef {import("./CalendarPuzzle.js").Month} Month */
 
 // Create puzzle instance
 const puzzle = new CalendarPuzzle();
+const kissatReady = waitForKissatInitialized();
 
 // Listen for messages from main thread
-self.addEventListener("message", (/** @type {MessageEvent} */ e) => {
+self.addEventListener("message", async (/** @type {MessageEvent} */ e) => {
   const { month, day } = e.data;
 
   try {
     // Solve the puzzle
+    await kissatReady;
     const startTime = performance.now();
-    const solution = puzzle.solveBacktrack(
+    const kissatResult = await solveKissat(
+      /** @type {import("./CalendarPuzzleKissat.js").KissatPuzzle} */ (puzzle),
       /** @type {Month} */ (month),
       Number(day)
     );
@@ -23,10 +30,12 @@ self.addEventListener("message", (/** @type {MessageEvent} */ e) => {
     // Send result back to main thread
     self.postMessage({
       success: true,
-      solution,
+      solution: kissatResult.solution,
       month,
       day,
       solveTimeMs,
+      solveOnlyMs: kissatResult.solveOnlyMs,
+      solver: "kissat",
     });
   } catch (error) {
     // Send error back to main thread

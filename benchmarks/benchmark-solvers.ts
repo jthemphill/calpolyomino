@@ -2,17 +2,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { CalendarPuzzle } from "../CalendarPuzzle.js";
 import {
-  KISSAT_SAT,
-  KISSAT_UNSAT,
-  kissatAdd,
-  kissatInit,
-  kissatRelease,
-  kissatSetQuiet,
-  kissatSolve,
-  kissatValue,
+  solveKissatSync,
   waitForKissatInitialized,
-  type KissatSolver,
-} from "../kissat-js/kissat-emscripten.ts";
+} from "../CalendarPuzzleKissat.js";
 
 type Month =
   | "Jan"
@@ -58,7 +50,14 @@ type Puzzle = {
 type Options = {
   runs: number;
   jsonPath: string | null;
+  all: boolean;
+  dates: BenchmarkDate[] | null;
   help: boolean;
+};
+
+type BenchmarkDate = {
+  month: Month;
+  day: number;
 };
 
 type Target = {
@@ -72,6 +71,8 @@ type KissatResult = {
   solveMs: number;
   status: number;
   variableCount: number;
+  auxiliaryVariableCount: number;
+  totalVariableCount: number;
   clauseCount: number;
 };
 
@@ -80,6 +81,8 @@ type DateBenchmark = {
   day: number;
   solved: boolean;
   variableCount: number;
+  auxiliaryVariableCount: number;
+  totalVariableCount: number;
   clauseCount: number;
   backtrackMs: number[];
   kissatTotalMs: number[];
@@ -104,12 +107,44 @@ const MONTHS: Month[] = [
   "Dec",
 ];
 
+const DEFAULT_BENCHMARK_DATES: BenchmarkDate[] = [
+  // Slowest backtracking dates from the full 372-date run.
+  { month: "Feb", day: 15 },
+  { month: "Dec", day: 5 },
+  { month: "Jul", day: 8 },
+  { month: "May", day: 3 },
+  { month: "Feb", day: 4 },
+  { month: "Feb", day: 11 },
+  { month: "Jan", day: 29 },
+  { month: "Jul", day: 6 },
+  { month: "Mar", day: 1 },
+  { month: "Mar", day: 2 },
+  // Slowest Kissat total dates from the full 372-date run.
+  { month: "Oct", day: 11 },
+  { month: "Feb", day: 28 },
+  { month: "Feb", day: 24 },
+  { month: "Oct", day: 17 },
+  { month: "Jun", day: 24 },
+  { month: "Sep", day: 2 },
+  { month: "Jun", day: 4 },
+  { month: "Oct", day: 26 },
+  { month: "Nov", day: 31 },
+];
+
+const MONTH_BY_NAME = new Map<string, Month>(
+  MONTHS.map((month) => [month.toLowerCase(), month])
+);
+
 function usage(): string {
   return [
-    "Usage: bun run benchmark [--runs N] [--json[=out/path.json]]",
+    "Usage: bun run benchmark [--runs N] [--all] [--dates LIST] [--json[=out/path.json]]",
+    "",
+    "By default this benchmarks 19 representative slow dates.",
     "",
     "Options:",
     "  --runs N          Number of timed runs per month/day pair. Default: 3.",
+    "  --all             Benchmark all 372 month/day pairs.",
+    "  --dates LIST      Benchmark comma-separated dates, e.g. \"Feb-15,Oct-11\".",
     "  --json            Write JSON to out/solver-benchmark.json.",
     "  --json PATH       Write JSON to PATH.",
     "  --help            Show this message.",
@@ -120,6 +155,8 @@ function parseOptions(argv: string[]): Options {
   const options: Options = {
     runs: 3,
     jsonPath: null,
+    all: false,
+    dates: null,
     help: false,
   };
 
@@ -145,6 +182,29 @@ function parseOptions(argv: string[]): Options {
       continue;
     }
 
+    if (arg === "--all") {
+      options.all = true;
+      continue;
+    }
+
+    if (arg === "--dates") {
+      const value = argv[++i];
+      if (!value) {
+        throw new Error("--dates requires a comma-separated date list");
+      }
+      options.dates = parseDateList(value);
+      continue;
+    }
+
+    if (arg?.startsWith("--dates=")) {
+      const value = arg.slice("--dates=".length);
+      if (!value) {
+        throw new Error("--dates requires a comma-separated date list");
+      }
+      options.dates = parseDateList(value);
+      continue;
+    }
+
     if (arg === "--json") {
       const next = argv[i + 1];
       if (next && !next.startsWith("--")) {
@@ -165,6 +225,10 @@ function parseOptions(argv: string[]): Options {
     throw new Error(`Unknown argument: ${arg}`);
   }
 
+  if (options.all && options.dates) {
+    throw new Error("--all and --dates cannot be used together");
+  }
+
   return options;
 }
 
@@ -174,6 +238,86 @@ function parseRuns(value: string): number {
     throw new Error(`Invalid --runs value: ${value}`);
   }
   return runs;
+}
+
+function parseDateList(value: string): BenchmarkDate[] {
+  const dates = value
+    .split(",")
+    .map((date) => date.trim())
+    .filter((date) => date.length > 0)
+    .map(parseBenchmarkDate);
+
+  if (dates.length === 0) {
+    throw new Error("--dates requires at least one date");
+  }
+
+  return deduplicateDates(dates);
+}
+
+function parseBenchmarkDate(value: string): BenchmarkDate {
+  const match = value.match(/^([A-Za-z]{3})\s*[-:/]?\s*(\d{1,2})$/);
+  if (!match) {
+    throw new Error(`Invalid benchmark date: ${value}`);
+  }
+
+  const monthName = match[1];
+  const dayValue = match[2];
+  if (!monthName || !dayValue) {
+    throw new Error(`Invalid benchmark date: ${value}`);
+  }
+
+  const month = MONTH_BY_NAME.get(monthName.toLowerCase());
+  const day = Number(dayValue);
+
+  if (!month || !Number.isInteger(day) || day < 1 || day > 31) {
+    throw new Error(`Invalid benchmark date: ${value}`);
+  }
+
+  return { month, day };
+}
+
+function deduplicateDates(dates: BenchmarkDate[]): BenchmarkDate[] {
+  const seen = new Set<string>();
+  const uniqueDates: BenchmarkDate[] = [];
+
+  for (const date of dates) {
+    const key = getDateKey(date);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    uniqueDates.push(date);
+  }
+
+  return uniqueDates;
+}
+
+function getDateKey(date: BenchmarkDate): string {
+  return `${date.month}-${date.day}`;
+}
+
+function getAllBenchmarkDates(): BenchmarkDate[] {
+  return MONTHS.flatMap((month) =>
+    Array.from({ length: 31 }, (_, dayIndex) => ({
+      month,
+      day: dayIndex + 1,
+    }))
+  );
+}
+
+function getBenchmarkDates(options: Options): {
+  label: string;
+  dates: BenchmarkDate[];
+} {
+  if (options.all) {
+    return { label: "all", dates: getAllBenchmarkDates() };
+  }
+
+  if (options.dates) {
+    return { label: "custom", dates: options.dates };
+  }
+
+  return { label: "slow-sample", dates: DEFAULT_BENCHMARK_DATES };
 }
 
 function median(values: number[]): number {
@@ -225,40 +369,6 @@ function pad(value: string | number, width: number): string {
   return String(value).padStart(width);
 }
 
-function addClause(
-  solver: KissatSolver,
-  literals: number[]
-): void {
-  for (const literal of literals) {
-    kissatAdd(solver, literal);
-  }
-  kissatAdd(solver, 0);
-}
-
-function addExactlyOne(
-  solver: KissatSolver,
-  variables: number[]
-): number {
-  let clauseCount = 0;
-  addClause(solver, variables);
-  clauseCount++;
-
-  for (let i = 0; i < variables.length; i++) {
-    const left = variables[i];
-    if (left === undefined) continue;
-
-    for (let j = i + 1; j < variables.length; j++) {
-      const right = variables[j];
-      if (right === undefined) continue;
-
-      addClause(solver, [-left, -right]);
-      clauseCount++;
-    }
-  }
-
-  return clauseCount;
-}
-
 function getTarget(puzzle: Puzzle, month: Month, day: number): Target {
   const monthCell = puzzle.months[month];
   const dayCell = puzzle.days[day];
@@ -282,121 +392,24 @@ function getTarget(puzzle: Puzzle, month: Month, day: number): Target {
   return { forbiddenBits, targetBits };
 }
 
-function buildKissatVariables(puzzle: Puzzle, target: Target) {
-  const variableToPlacement: Placement[] = [];
-  const variablesByPiece: number[][] = puzzle.globalPlacements.map(() => []);
-  const variablesByCell: number[][] = Array.from(
-    { length: puzzle.validCells.size },
-    () => []
-  );
-
-  for (const placements of puzzle.globalPlacements) {
-    for (const placement of placements) {
-      if ((placement.bits & target.forbiddenBits) !== 0n) {
-        continue;
-      }
-
-      const variable = variableToPlacement.length + 1;
-      variableToPlacement.push(placement);
-      variablesByPiece[placement.pieceIdx]?.push(variable);
-
-      for (const [row, col] of placement.cellsList) {
-        const cellIndex = puzzle.cellToIndex.get(`${row},${col}`);
-        if (cellIndex === undefined) {
-          throw new Error(`Placement uses invalid cell ${row},${col}`);
-        }
-        variablesByCell[cellIndex]?.push(variable);
-      }
-    }
-  }
-
-  return { variableToPlacement, variablesByPiece, variablesByCell };
-}
-
 function solveWithKissat(
   puzzle: Puzzle,
   month: Month,
   day: number
 ): KissatResult {
   const totalStart = performance.now();
-  const solver = kissatInit();
-  let solveMs = 0;
-  let status = 0;
-  let variableCount = 0;
-  let clauseCount = 0;
+  const result = solveKissatSync(puzzle, month, day);
 
-  try {
-    kissatSetQuiet(solver);
-
-    const target = getTarget(puzzle, month, day);
-    const { variableToPlacement, variablesByPiece, variablesByCell } =
-      buildKissatVariables(puzzle, target);
-    variableCount = variableToPlacement.length;
-
-    for (const variables of variablesByPiece) {
-      clauseCount += addExactlyOne(solver, variables);
-    }
-
-    for (let cellIndex = 0; cellIndex < puzzle.validCells.size; cellIndex++) {
-      if ((target.targetBits & (1n << BigInt(cellIndex))) !== 0n) {
-        clauseCount += addExactlyOne(
-          solver,
-          variablesByCell[cellIndex] ?? []
-        );
-      }
-    }
-
-    const solveStart = performance.now();
-    status = kissatSolve(solver);
-    solveMs = performance.now() - solveStart;
-
-    if (status === KISSAT_UNSAT) {
-      return {
-        solution: null,
-        totalMs: performance.now() - totalStart,
-        solveMs,
-        status,
-        variableCount,
-        clauseCount,
-      };
-    }
-
-    if (status !== KISSAT_SAT) {
-      throw new Error(`Kissat returned unexpected status ${status}`);
-    }
-
-    const solution: Solution[] = [];
-    for (let variable = 1; variable <= variableToPlacement.length; variable++) {
-      if (kissatValue(solver, variable) <= 0) {
-        continue;
-      }
-
-      const placement = variableToPlacement[variable - 1];
-      if (!placement) {
-        throw new Error(`Missing placement for variable ${variable}`);
-      }
-
-      solution.push({
-        pieceIdx: placement.pieceIdx,
-        r: placement.r,
-        c: placement.c,
-        cells: placement.cellsList
-          .slice()
-          .sort((a, b) => (a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1])),
-      });
-    }
-
-    return {
-      solution,
-      totalMs: performance.now() - totalStart,
-      solveMs,
-      status,
-      variableCount,
-      clauseCount,
-    };
-  } finally {
-    kissatRelease(solver);
-  }
+  return {
+    solution: result.solution,
+    totalMs: performance.now() - totalStart,
+    solveMs: result.solveOnlyMs,
+    status: result.status,
+    variableCount: result.variableCount,
+    auxiliaryVariableCount: result.auxiliaryVariableCount,
+    totalVariableCount: result.totalVariableCount,
+    clauseCount: result.clauseCount,
+  };
 }
 
 function validateExactCover(
@@ -478,11 +491,13 @@ function printDateTable(rows: DateBenchmark[]): void {
       pad("Total speed", 12),
       pad("Solve speed", 12),
       pad("Vars", 6),
+      pad("Aux", 6),
+      pad("Total vars", 10),
       pad("Clauses", 8),
       "Result",
     ].join("  ")
   );
-  console.log("-".repeat(104));
+  console.log("-".repeat(124));
 
   for (const row of rows) {
     console.log(
@@ -494,6 +509,8 @@ function printDateTable(rows: DateBenchmark[]): void {
         pad(formatRatio(row.backtrackMedianMs, row.kissatTotalMedianMs), 12),
         pad(formatRatio(row.backtrackMedianMs, row.kissatSolveMedianMs), 12),
         pad(row.variableCount, 6),
+        pad(row.auxiliaryVariableCount, 6),
+        pad(row.totalVariableCount, 10),
         pad(row.clauseCount, 8),
         row.solved ? "SAT" : "UNSAT",
       ].join("  ")
@@ -521,13 +538,18 @@ function printAggregate(
   );
 }
 
-function printSummary(rows: DateBenchmark[], runs: number): void {
+function printSummary(
+  rows: DateBenchmark[],
+  runs: number,
+  dateSetLabel: string
+): void {
   const solvedCount = rows.filter((row) => row.solved).length;
   const backtrackMedians = rows.map((row) => row.backtrackMedianMs);
   const kissatTotalMedians = rows.map((row) => row.kissatTotalMedianMs);
   const kissatSolveMedians = rows.map((row) => row.kissatSolveMedianMs);
 
   console.log("");
+  console.log(`Date set: ${dateSetLabel}`);
   console.log(`Dates benchmarked: ${rows.length}`);
   console.log(`Runs per date: ${runs}`);
   console.log(`Solved dates: ${solvedCount}/${rows.length}`);
@@ -596,11 +618,13 @@ async function writeJsonReport(
   path: string,
   rows: DateBenchmark[],
   runs: number,
+  dateSetLabel: string,
   elapsedMs: number
 ): Promise<void> {
   const report = {
     generatedAt: new Date().toISOString(),
     runsPerDate: runs,
+    dateSet: dateSetLabel,
     elapsedMs,
     dates: rows,
     aggregates: {
@@ -622,77 +646,88 @@ async function main(): Promise<void> {
     return;
   }
 
+  const dateSelection = getBenchmarkDates(options);
   const puzzle = new CalendarPuzzle() as Puzzle;
   await waitForKissatInitialized();
   const startedAt = performance.now();
   const rows: DateBenchmark[] = [];
 
-  for (const month of MONTHS) {
-    for (let day = 1; day <= 31; day++) {
-      const backtrackMs: number[] = [];
-      const kissatTotalMs: number[] = [];
-      const kissatSolveMs: number[] = [];
-      let solved = false;
-      let variableCount = 0;
-      let clauseCount = 0;
+  for (const { month, day } of dateSelection.dates) {
+    const backtrackMs: number[] = [];
+    const kissatTotalMs: number[] = [];
+    const kissatSolveMs: number[] = [];
+    let solved = false;
+    let variableCount = 0;
+    let auxiliaryVariableCount = 0;
+    let totalVariableCount = 0;
+    let clauseCount = 0;
 
-      for (let run = 0; run < options.runs; run++) {
-        const backtrack = timeBacktrack(puzzle, month, day);
-        const backtrackSolved = validateExactCover(
-          puzzle,
-          month,
-          day,
-          backtrack.solution,
-          "Backtrack"
-        );
-
-        const kissatResult = solveWithKissat(puzzle, month, day);
-        const kissatSolved = validateExactCover(
-          puzzle,
-          month,
-          day,
-          kissatResult.solution,
-          "Kissat"
-        );
-
-        if (backtrackSolved !== kissatSolved) {
-          throw new Error(
-            `Solver mismatch for ${month} ${day}: backtrack=${backtrackSolved}, kissat=${kissatSolved}`
-          );
-        }
-
-        solved = backtrackSolved;
-        variableCount = kissatResult.variableCount;
-        clauseCount = kissatResult.clauseCount;
-        backtrackMs.push(backtrack.ms);
-        kissatTotalMs.push(kissatResult.totalMs);
-        kissatSolveMs.push(kissatResult.solveMs);
-      }
-
-      rows.push({
+    for (let run = 0; run < options.runs; run++) {
+      const backtrack = timeBacktrack(puzzle, month, day);
+      const backtrackSolved = validateExactCover(
+        puzzle,
         month,
         day,
-        solved,
-        variableCount,
-        clauseCount,
-        backtrackMs,
-        kissatTotalMs,
-        kissatSolveMs,
-        backtrackMedianMs: median(backtrackMs),
-        kissatTotalMedianMs: median(kissatTotalMs),
-        kissatSolveMedianMs: median(kissatSolveMs),
-      });
+        backtrack.solution,
+        "Backtrack"
+      );
+
+      const kissatResult = solveWithKissat(puzzle, month, day);
+      const kissatSolved = validateExactCover(
+        puzzle,
+        month,
+        day,
+        kissatResult.solution,
+        "Kissat"
+      );
+
+      if (backtrackSolved !== kissatSolved) {
+        throw new Error(
+          `Solver mismatch for ${month} ${day}: backtrack=${backtrackSolved}, kissat=${kissatSolved}`
+        );
+      }
+
+      solved = backtrackSolved;
+      variableCount = kissatResult.variableCount;
+      auxiliaryVariableCount = kissatResult.auxiliaryVariableCount;
+      totalVariableCount = kissatResult.totalVariableCount;
+      clauseCount = kissatResult.clauseCount;
+      backtrackMs.push(backtrack.ms);
+      kissatTotalMs.push(kissatResult.totalMs);
+      kissatSolveMs.push(kissatResult.solveMs);
     }
+
+    rows.push({
+      month,
+      day,
+      solved,
+      variableCount,
+      auxiliaryVariableCount,
+      totalVariableCount,
+      clauseCount,
+      backtrackMs,
+      kissatTotalMs,
+      kissatSolveMs,
+      backtrackMedianMs: median(backtrackMs),
+      kissatTotalMedianMs: median(kissatTotalMs),
+      kissatSolveMedianMs: median(kissatSolveMs),
+    });
   }
 
   const elapsedMs = performance.now() - startedAt;
   printDateTable(rows);
-  printSummary(rows, options.runs);
+  printSummary(rows, options.runs, dateSelection.label);
   console.log("");
   console.log(`Benchmark elapsed wall time: ${formatMs(elapsedMs)} ms`);
 
   if (options.jsonPath) {
-    await writeJsonReport(options.jsonPath, rows, options.runs, elapsedMs);
+    await writeJsonReport(
+      options.jsonPath,
+      rows,
+      options.runs,
+      dateSelection.label,
+      elapsedMs
+    );
     console.log(`JSON report written to ${options.jsonPath}`);
   }
 }
