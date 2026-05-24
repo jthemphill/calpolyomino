@@ -1,10 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { CalendarPuzzle } from "../CalendarPuzzle.js";
-import {
-  solveKissatSync,
-  waitForKissatInitialized,
-} from "../CalendarPuzzleKissat.js";
 
 type Month =
   | "Jan"
@@ -29,22 +25,13 @@ type Solution = {
   cells: Cell[];
 };
 
-type Placement = {
-  pieceIdx: number;
-  r: number;
-  c: number;
-  bits: bigint;
-  cellsList: Cell[];
-};
-
 type Puzzle = {
   pieces: Cell[][];
   validCells: Set<string>;
   months: Record<Month, Cell>;
   days: Record<number, Cell>;
   cellToIndex: Map<string, number>;
-  globalPlacements: Placement[][];
-  solveBacktrack(month: Month, day: number): Solution[] | null;
+  solveExactCover(month: Month, day: number): Solution[] | null;
 };
 
 type Options = {
@@ -65,31 +52,12 @@ type Target = {
   targetBits: bigint;
 };
 
-type KissatResult = {
-  solution: Solution[] | null;
-  totalMs: number;
-  solveMs: number;
-  status: number;
-  variableCount: number;
-  auxiliaryVariableCount: number;
-  totalVariableCount: number;
-  clauseCount: number;
-};
-
 type DateBenchmark = {
   month: Month;
   day: number;
   solved: boolean;
-  variableCount: number;
-  auxiliaryVariableCount: number;
-  totalVariableCount: number;
-  clauseCount: number;
-  backtrackMs: number[];
-  kissatTotalMs: number[];
-  kissatSolveMs: number[];
-  backtrackMedianMs: number;
-  kissatTotalMedianMs: number;
-  kissatSolveMedianMs: number;
+  exactCoverMs: number[];
+  exactCoverMedianMs: number;
 };
 
 const MONTHS: Month[] = [
@@ -108,26 +76,16 @@ const MONTHS: Month[] = [
 ];
 
 const DEFAULT_BENCHMARK_DATES: BenchmarkDate[] = [
-  // Slowest backtracking dates from the full 372-date run.
-  { month: "Feb", day: 15 },
-  { month: "Dec", day: 5 },
-  { month: "Jul", day: 8 },
-  { month: "May", day: 3 },
-  { month: "Feb", day: 4 },
-  { month: "Feb", day: 11 },
-  { month: "Jan", day: 29 },
-  { month: "Jul", day: 6 },
-  { month: "Mar", day: 1 },
-  { month: "Mar", day: 2 },
-  // Slowest Kissat total dates from the full 372-date run.
-  { month: "Oct", day: 11 },
-  { month: "Feb", day: 28 },
-  { month: "Feb", day: 24 },
-  { month: "Oct", day: 17 },
+  { month: "Mar", day: 18 },
   { month: "Jun", day: 24 },
-  { month: "Sep", day: 2 },
-  { month: "Jun", day: 4 },
-  { month: "Oct", day: 26 },
+  { month: "Aug", day: 21 },
+  { month: "Apr", day: 4 },
+  { month: "Mar", day: 30 },
+  { month: "Dec", day: 16 },
+  { month: "Oct", day: 10 },
+  { month: "Jan", day: 3 },
+  { month: "Apr", day: 10 },
+  { month: "Feb", day: 27 },
   { month: "Nov", day: 31 },
 ];
 
@@ -139,7 +97,7 @@ function usage(): string {
   return [
     "Usage: bun run benchmark [--runs N] [--all] [--dates LIST] [--json[=out/path.json]]",
     "",
-    "By default this benchmarks 19 representative slow dates.",
+    "By default this benchmarks representative slower exact-cover dates.",
     "",
     "Options:",
     "  --runs N          Number of timed runs per month/day pair. Default: 3.",
@@ -360,11 +318,6 @@ function formatMs(value: number): string {
   return value.toFixed(value < 10 ? 3 : 2);
 }
 
-function formatRatio(numerator: number, denominator: number): string {
-  if (denominator === 0) return "n/a";
-  return `${(numerator / denominator).toFixed(2)}x`;
-}
-
 function pad(value: string | number, width: number): string {
   return String(value).padStart(width);
 }
@@ -377,7 +330,9 @@ function getTarget(puzzle: Puzzle, month: Month, day: number): Target {
     throw new Error(`Invalid month/day: ${month} ${day}`);
   }
 
-  const forbiddenIdx1 = puzzle.cellToIndex.get(`${monthCell[0]},${monthCell[1]}`);
+  const forbiddenIdx1 = puzzle.cellToIndex.get(
+    `${monthCell[0]},${monthCell[1]}`
+  );
   const forbiddenIdx2 = puzzle.cellToIndex.get(`${dayCell[0]},${dayCell[1]}`);
 
   if (forbiddenIdx1 === undefined || forbiddenIdx2 === undefined) {
@@ -392,32 +347,11 @@ function getTarget(puzzle: Puzzle, month: Month, day: number): Target {
   return { forbiddenBits, targetBits };
 }
 
-function solveWithKissat(
-  puzzle: Puzzle,
-  month: Month,
-  day: number
-): KissatResult {
-  const totalStart = performance.now();
-  const result = solveKissatSync(puzzle, month, day);
-
-  return {
-    solution: result.solution,
-    totalMs: performance.now() - totalStart,
-    solveMs: result.solveOnlyMs,
-    status: result.status,
-    variableCount: result.variableCount,
-    auxiliaryVariableCount: result.auxiliaryVariableCount,
-    totalVariableCount: result.totalVariableCount,
-    clauseCount: result.clauseCount,
-  };
-}
-
 function validateExactCover(
   puzzle: Puzzle,
   month: Month,
   day: number,
-  solution: Solution[] | null,
-  solverName: string
+  solution: Solution[] | null
 ): boolean {
   if (solution === null) {
     return false;
@@ -430,7 +364,7 @@ function validateExactCover(
   for (const placement of solution) {
     if (seenPieces.has(placement.pieceIdx)) {
       throw new Error(
-        `${solverName} reused piece ${placement.pieceIdx} for ${month} ${day}`
+        `Exact-cover reused piece ${placement.pieceIdx} for ${month} ${day}`
       );
     }
     seenPieces.add(placement.pieceIdx);
@@ -440,20 +374,18 @@ function validateExactCover(
       const cellIndex = puzzle.cellToIndex.get(`${row},${col}`);
       if (cellIndex === undefined) {
         throw new Error(
-          `${solverName} placed piece ${placement.pieceIdx} on invalid cell ${row},${col}`
+          `Exact-cover placed piece ${placement.pieceIdx} on invalid cell ${row},${col}`
         );
       }
       placementBits |= 1n << BigInt(cellIndex);
     }
 
     if ((placementBits & target.forbiddenBits) !== 0n) {
-      throw new Error(
-        `${solverName} covered a target cell for ${month} ${day}`
-      );
+      throw new Error(`Exact-cover covered a target cell for ${month} ${day}`);
     }
 
     if ((coveredBits & placementBits) !== 0n) {
-      throw new Error(`${solverName} has overlapping cells for ${month} ${day}`);
+      throw new Error(`Exact-cover has overlapping cells for ${month} ${day}`);
     }
 
     coveredBits |= placementBits;
@@ -461,20 +393,20 @@ function validateExactCover(
 
   if (seenPieces.size !== puzzle.pieces.length) {
     throw new Error(
-      `${solverName} used ${seenPieces.size} pieces instead of ${puzzle.pieces.length} for ${month} ${day}`
+      `Exact-cover used ${seenPieces.size} pieces instead of ${puzzle.pieces.length} for ${month} ${day}`
     );
   }
 
   if (coveredBits !== target.targetBits) {
-    throw new Error(`${solverName} did not exactly cover ${month} ${day}`);
+    throw new Error(`Exact-cover did not exactly cover ${month} ${day}`);
   }
 
   return true;
 }
 
-function timeBacktrack(puzzle: Puzzle, month: Month, day: number) {
+function timeExactCover(puzzle: Puzzle, month: Month, day: number) {
   const start = performance.now();
-  const solution = puzzle.solveBacktrack(month, day);
+  const solution = puzzle.solveExactCover(month, day);
   return {
     solution,
     ms: performance.now() - start,
@@ -482,47 +414,21 @@ function timeBacktrack(puzzle: Puzzle, month: Month, day: number) {
 }
 
 function printDateTable(rows: DateBenchmark[]): void {
-  console.log(
-    [
-      "Date",
-      pad("Backtrack", 11),
-      pad("Kissat total", 13),
-      pad("Kissat solve", 13),
-      pad("Total speed", 12),
-      pad("Solve speed", 12),
-      pad("Vars", 6),
-      pad("Aux", 6),
-      pad("Total vars", 10),
-      pad("Clauses", 8),
-      "Result",
-    ].join("  ")
-  );
-  console.log("-".repeat(124));
+  console.log(["Date", pad("Exact cover", 13), "Result"].join("  "));
+  console.log("-".repeat(33));
 
   for (const row of rows) {
     console.log(
       [
         `${row.month} ${String(row.day).padStart(2, "0")}`,
-        pad(formatMs(row.backtrackMedianMs), 11),
-        pad(formatMs(row.kissatTotalMedianMs), 13),
-        pad(formatMs(row.kissatSolveMedianMs), 13),
-        pad(formatRatio(row.backtrackMedianMs, row.kissatTotalMedianMs), 12),
-        pad(formatRatio(row.backtrackMedianMs, row.kissatSolveMedianMs), 12),
-        pad(row.variableCount, 6),
-        pad(row.auxiliaryVariableCount, 6),
-        pad(row.totalVariableCount, 10),
-        pad(row.clauseCount, 8),
+        pad(formatMs(row.exactCoverMedianMs), 13),
         row.solved ? "SAT" : "UNSAT",
       ].join("  ")
     );
   }
 }
 
-function printAggregate(
-  label: string,
-  values: number[],
-  unit = "ms"
-): void {
+function printAggregate(label: string, values: number[], unit = "ms"): void {
   const summary = stats(values);
   console.log(
     [
@@ -544,9 +450,7 @@ function printSummary(
   dateSetLabel: string
 ): void {
   const solvedCount = rows.filter((row) => row.solved).length;
-  const backtrackMedians = rows.map((row) => row.backtrackMedianMs);
-  const kissatTotalMedians = rows.map((row) => row.kissatTotalMedianMs);
-  const kissatSolveMedians = rows.map((row) => row.kissatSolveMedianMs);
+  const exactCoverMedians = rows.map((row) => row.exactCoverMedianMs);
 
   console.log("");
   console.log(`Date set: ${dateSetLabel}`);
@@ -567,48 +471,22 @@ function printSummary(
     ].join("  ")
   );
   console.log("-".repeat(88));
-  printAggregate("Backtrack", backtrackMedians);
-  printAggregate("Kissat total", kissatTotalMedians);
-  printAggregate("Kissat solve", kissatSolveMedians);
-
-  const totalBacktrack = backtrackMedians.reduce((sum, ms) => sum + ms, 0);
-  const totalKissat = kissatTotalMedians.reduce((sum, ms) => sum + ms, 0);
-  const totalKissatSolve = kissatSolveMedians.reduce((sum, ms) => sum + ms, 0);
-
-  console.log("");
-  console.log(
-    `Total speedup using Kissat total time: ${formatRatio(
-      totalBacktrack,
-      totalKissat
-    )}`
-  );
-  console.log(
-    `Total speedup using Kissat solve-only time: ${formatRatio(
-      totalBacktrack,
-      totalKissatSolve
-    )}`
-  );
-
-  printSlowest("Slowest backtracking dates", rows, "backtrackMedianMs");
-  printSlowest("Slowest Kissat total dates", rows, "kissatTotalMedianMs");
+  printAggregate("Exact cover", exactCoverMedians);
+  printSlowest("Slowest exact-cover dates", rows);
 }
 
-function printSlowest(
-  title: string,
-  rows: DateBenchmark[],
-  key: "backtrackMedianMs" | "kissatTotalMedianMs"
-): void {
+function printSlowest(title: string, rows: DateBenchmark[]): void {
   console.log("");
   console.log(`${title}:`);
   const slowest = rows
     .slice()
-    .sort((a, b) => b[key] - a[key])
+    .sort((a, b) => b.exactCoverMedianMs - a.exactCoverMedianMs)
     .slice(0, 10);
 
   for (const row of slowest) {
     console.log(
       `  ${row.month} ${String(row.day).padStart(2, "0")}: ${formatMs(
-        row[key]
+        row.exactCoverMedianMs
       )} ms`
     );
   }
@@ -628,9 +506,7 @@ async function writeJsonReport(
     elapsedMs,
     dates: rows,
     aggregates: {
-      backtrackMedianMs: stats(rows.map((row) => row.backtrackMedianMs)),
-      kissatTotalMedianMs: stats(rows.map((row) => row.kissatTotalMedianMs)),
-      kissatSolveMedianMs: stats(rows.map((row) => row.kissatSolveMedianMs)),
+      exactCoverMedianMs: stats(rows.map((row) => row.exactCoverMedianMs)),
     },
   };
 
@@ -648,69 +524,25 @@ async function main(): Promise<void> {
 
   const dateSelection = getBenchmarkDates(options);
   const puzzle = new CalendarPuzzle() as Puzzle;
-  await waitForKissatInitialized();
   const startedAt = performance.now();
   const rows: DateBenchmark[] = [];
 
   for (const { month, day } of dateSelection.dates) {
-    const backtrackMs: number[] = [];
-    const kissatTotalMs: number[] = [];
-    const kissatSolveMs: number[] = [];
+    const exactCoverMs: number[] = [];
     let solved = false;
-    let variableCount = 0;
-    let auxiliaryVariableCount = 0;
-    let totalVariableCount = 0;
-    let clauseCount = 0;
 
     for (let run = 0; run < options.runs; run++) {
-      const backtrack = timeBacktrack(puzzle, month, day);
-      const backtrackSolved = validateExactCover(
-        puzzle,
-        month,
-        day,
-        backtrack.solution,
-        "Backtrack"
-      );
-
-      const kissatResult = solveWithKissat(puzzle, month, day);
-      const kissatSolved = validateExactCover(
-        puzzle,
-        month,
-        day,
-        kissatResult.solution,
-        "Kissat"
-      );
-
-      if (backtrackSolved !== kissatSolved) {
-        throw new Error(
-          `Solver mismatch for ${month} ${day}: backtrack=${backtrackSolved}, kissat=${kissatSolved}`
-        );
-      }
-
-      solved = backtrackSolved;
-      variableCount = kissatResult.variableCount;
-      auxiliaryVariableCount = kissatResult.auxiliaryVariableCount;
-      totalVariableCount = kissatResult.totalVariableCount;
-      clauseCount = kissatResult.clauseCount;
-      backtrackMs.push(backtrack.ms);
-      kissatTotalMs.push(kissatResult.totalMs);
-      kissatSolveMs.push(kissatResult.solveMs);
+      const exactCover = timeExactCover(puzzle, month, day);
+      solved = validateExactCover(puzzle, month, day, exactCover.solution);
+      exactCoverMs.push(exactCover.ms);
     }
 
     rows.push({
       month,
       day,
       solved,
-      variableCount,
-      auxiliaryVariableCount,
-      totalVariableCount,
-      clauseCount,
-      backtrackMs,
-      kissatTotalMs,
-      kissatSolveMs,
-      backtrackMedianMs: median(backtrackMs),
-      kissatTotalMedianMs: median(kissatTotalMs),
-      kissatSolveMedianMs: median(kissatSolveMs),
+      exactCoverMs,
+      exactCoverMedianMs: median(exactCoverMs),
     });
   }
 

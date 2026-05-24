@@ -538,7 +538,7 @@
             renderBoard(month, day, solution);
             showStatus(
               `✓ Solution found in ${durFormatter.format({
-                milliseconds: Math.floor(solveTimeMs),
+                milliseconds: Math.ceil(solveTimeMs),
               })}.`,
               "success"
             );

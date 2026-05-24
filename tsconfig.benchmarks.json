@@ -6,8 +6,7 @@
   },
   "include": [
     "benchmarks/**/*.ts",
-    "CalendarPuzzle.js",
-    "kissat-js/kissat-emscripten.js"
+    "CalendarPuzzle.js"
   ],
   "exclude": []
 }

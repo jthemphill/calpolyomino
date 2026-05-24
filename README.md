@@ -41,21 +41,22 @@ The puzzle will automatically solve for today's date. You can select any month a
 
 ## How It Works
 
-The solver uses a **backtracking search algorithm**:
+The solver uses an **exact-cover search algorithm**:
 - Generates all possible orientations (rotations and reflections) for each piece
 - Enumerates all valid placements on the board
-- Searches for a configuration where all non-target cells are covered exactly once
+- Uses bitboards to track covered cells and used pieces
+- Chooses the uncovered cell with the fewest remaining valid placements before branching
 
 The algorithm is implemented in pure JavaScript and runs directly in your browser.
 
 ## Customizing Pieces
 
-The default piece definitions may not match your physical puzzle. You can easily update them in `solver.js`!
+The default piece definitions may not match your physical puzzle. You can easily update them in `CalendarPuzzle.js`!
 
 ### How to Define Your Pieces
 
 1. Look at your physical puzzle pieces
-2. Open `solver.js` and find the `pieceAscii` array (around line 71)
+2. Open `CalendarPuzzle.js` and find the `pieceAscii` array
 3. Update each piece definition using `#` to mark cells
 
 ### Example Piece Definitions
@@ -147,7 +148,15 @@ bun run typecheck
 The project uses TypeScript project references with separate configurations:
 - `tsconfig.base.json` - Shared base configuration
 - `tsconfig.worker.json` - Configuration for Web Worker files (`*.worker.js`)
+- `tsconfig.benchmarks.json` - Configuration for benchmark scripts
 - `tsconfig.tests.json` - Configuration for Playwright tests
+
+### Benchmarking
+
+```bash
+bun run benchmark
+bun run benchmark -- --all --runs 1
+```
 
 ### Continuous Integration
 

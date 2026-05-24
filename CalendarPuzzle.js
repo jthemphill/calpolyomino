@@ -28,6 +28,13 @@
  */
 
 /**
+ * @typedef {{
+ *   forbiddenBits: bigint,
+ *   targetBits: bigint,
+ * }} Target
+ */
+
+/**
  * @typedef {'Jan' | 'Feb' | 'Mar' | 'Apr' | 'May' | 'Jun' | 'Jul' | 'Aug' | 'Sep' | 'Oct' | 'Nov' | 'Dec'} Month
  */
 
@@ -200,8 +207,17 @@ class CalendarPuzzle {
       cellIdx++;
     }
 
+    /** @type {bigint[]} */
+    this.cellBits = this.indexToCell.map((_, index) => 1n << BigInt(index));
+
     // Pre-compute all possible placements for all pieces
+    /** @type {Placement[][]} */
     this.globalPlacements = this.precomputeAllPlacements();
+
+    /** @type {Placement[][]} */
+    this.globalPlacementsByCell = this.precomputePlacementsByCell(
+      this.globalPlacements
+    );
   }
 
   /**
@@ -373,8 +389,10 @@ class CalendarPuzzle {
               let bitboard = 0n;
               for (const key of cellKeys) {
                 const index = this.cellToIndex.get(key);
-                if (index !== undefined) {
-                  bitboard |= 1n << BigInt(index);
+                const cellBit =
+                  index === undefined ? undefined : this.cellBits[index];
+                if (cellBit !== undefined) {
+                  bitboard |= cellBit;
                 }
               }
 
@@ -396,31 +414,37 @@ class CalendarPuzzle {
   }
 
   /**
-   * Compute dynamic piece ordering based on placement constraints.
-   * Places most constrained pieces first to prune search space earlier.
-   * @param {Placement[][]} filteredPlacements
-   * @returns {number[]}
+   * @param {Placement[][]} globalPlacements
+   * @returns {Placement[][]}
    */
-  computePieceOrder(filteredPlacements) {
-    // Count valid placements per piece
-    const counts = filteredPlacements.map((placements, idx) => ({
-      idx,
-      count: placements.length,
-    }));
+  precomputePlacementsByCell(globalPlacements) {
+    /** @type {Placement[][]} */
+    const placementsByCell = Array.from(
+      { length: this.validCells.size },
+      () => []
+    );
 
-    // Sort by count ascending (most constrained first)
-    counts.sort((a, b) => a.count - b.count);
+    for (const piecePlacements of globalPlacements) {
+      for (const placement of piecePlacements) {
+        for (const [row, col] of placement.cellsList) {
+          const cellIndex = this.cellToIndex.get(`${row},${col}`);
+          if (cellIndex === undefined) {
+            throw new Error(`Placement uses invalid cell ${row},${col}`);
+          }
+          placementsByCell[cellIndex]?.push(placement);
+        }
+      }
+    }
 
-    return counts.map((c) => c.idx);
+    return placementsByCell;
   }
 
   /**
-   *
    * @param {Month} month Month to solve for
    * @param {number} day Day to solve for
-   * @returns {Solution[] | null}
+   * @returns {Target}
    */
-  solveBacktrack(month, day) {
+  getTarget(month, day) {
     const monthCell = this.months[month];
     const dayCell = this.days[day];
 
@@ -446,68 +470,120 @@ class CalendarPuzzle {
     const targetBits =
       (1n << BigInt(this.validCells.size)) - 1n - forbiddenBits;
 
-    // Filter pre-computed placements by forbidden bits
-    const allPlacements = this.globalPlacements.map((placements) =>
-      placements.filter((p) => (p.bits & forbiddenBits) === 0n)
-    );
+    return { forbiddenBits, targetBits };
+  }
 
-    // Compute piece ordering (most constrained first for better pruning)
-    const pieceOrder = this.computePieceOrder(allPlacements);
+  /**
+   * @param {Placement} placement
+   * @returns {Solution}
+   */
+  placementToSolution(placement) {
+    return {
+      pieceIdx: placement.pieceIdx,
+      r: placement.r,
+      c: placement.c,
+      cells: placement.cellsList
+        .slice()
+        .sort((a, b) => (a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1])),
+    };
+  }
 
-    // Backtracking search with bitboards
+  /**
+   *
+   * @param {Month} month Month to solve for
+   * @param {number} day Day to solve for
+   * @returns {Solution[] | null}
+   */
+  solveExactCover(month, day) {
+    const target = this.getTarget(month, day);
+    const allPiecesUsed = (1 << this.pieces.length) - 1;
+
     let coveredBits = 0n;
+    let usedPieceBits = 0;
     /** @type {Placement[]} */
     const solution = [];
 
-    /**
-     *
-     * @param {number} depth The current depth in the search tree
-     * @returns {boolean}
-     */
-    const backtrack = (depth) => {
-      if (depth === this.pieces.length) {
-        return coveredBits === targetBits;
+    /** @returns {boolean} */
+    const search = () => {
+      if (coveredBits === target.targetBits) {
+        return usedPieceBits === allPiecesUsed;
       }
 
-      // Use dynamic piece ordering
-      const pieceIdx = pieceOrder[depth];
-      if (pieceIdx === undefined) return false;
+      /** @type {Placement[] | null} */
+      let bestCandidates = null;
+      let bestCandidateCount = Infinity;
 
-      const piecePlacements = allPlacements[pieceIdx];
-      if (!piecePlacements) return false;
-
-      for (const placement of piecePlacements) {
-        // Check overlap
-        if ((coveredBits & placement.bits) === 0n) {
-          // No overlap, place the piece
-          coveredBits |= placement.bits;
-          solution.push(placement);
-
-          if (backtrack(depth + 1)) {
-            return true;
-          }
-
-          // Backtrack
-          coveredBits ^= placement.bits;
-          solution.pop();
+      for (let cellIndex = 0; cellIndex < this.validCells.size; cellIndex++) {
+        const cellBit = this.cellBits[cellIndex];
+        if (cellBit === undefined) {
+          throw new Error(`Missing bit for cell index ${cellIndex}`);
         }
+        if (
+          (target.targetBits & cellBit) === 0n ||
+          (coveredBits & cellBit) !== 0n
+        ) {
+          continue;
+        }
+
+        /** @type {Placement[]} */
+        const candidates = [];
+        for (const placement of this.globalPlacementsByCell[cellIndex] ?? []) {
+          const pieceBit = 1 << placement.pieceIdx;
+          if ((usedPieceBits & pieceBit) !== 0) {
+            continue;
+          }
+          if ((placement.bits & target.forbiddenBits) !== 0n) {
+            continue;
+          }
+          if ((coveredBits & placement.bits) !== 0n) {
+            continue;
+          }
+          candidates.push(placement);
+        }
+
+        // Find the piece with the fewest valid placements to maximize pruning
+        if (candidates.length < bestCandidateCount) {
+          bestCandidates = candidates;
+          bestCandidateCount = candidates.length;
+
+          if (bestCandidateCount === 0) {
+            return false;
+          }
+          if (bestCandidateCount === 1) {
+            break;
+          }
+        }
+      }
+
+      if (bestCandidates === null) {
+        return false;
+      }
+
+      for (const placement of bestCandidates) {
+        const pieceBit = 1 << placement.pieceIdx;
+        coveredBits |= placement.bits;
+        usedPieceBits |= pieceBit;
+        solution.push(placement);
+
+        if (search()) {
+          return true;
+        }
+
+        solution.pop();
+        usedPieceBits &= ~pieceBit;
+        coveredBits ^= placement.bits;
       }
 
       return false;
     };
 
-    if (backtrack(0)) {
-      return solution.map((placement) => ({
-        pieceIdx: placement.pieceIdx,
-        r: placement.r,
-        c: placement.c,
-        cells: placement.cellsList
-          .slice()
-          .sort((a, b) => (a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1])),
-      }));
+    if (search()) {
+      return solution.map((placement) => this.placementToSolution(placement));
     }
+
     return null;
   }
+
 }
 
 export { CalendarPuzzle };
