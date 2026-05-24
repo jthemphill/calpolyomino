@@ -17,9 +17,12 @@ test.describe("Calendar Puzzle Clickable Cells", () => {
     });
 
     await page.goto("/");
-    // Wait for initial puzzle to be solved
-    await page.waitForSelector(".status", { timeout: 10000 });
-    await page.waitForTimeout(2000); // Give solver time to complete
+    await expect(
+      page.getByRole("button", { name: /Current month:/ })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Current day:/ })
+    ).toBeVisible();
   });
 
   test("should allow clicking on empty month cells after puzzle is solved", async ({
@@ -56,9 +59,6 @@ test.describe("Calendar Puzzle Clickable Cells", () => {
       .first()
       .click();
 
-    // Wait for the puzzle to be solved again
-    await page.waitForSelector(".status.success", { timeout: 10000 });
-
     // Verify the month has changed
     const newMonthButton = page.getByRole("button", {
       name: new RegExp(`Current month: ${targetMonth}`),
@@ -85,9 +85,6 @@ test.describe("Calendar Puzzle Clickable Cells", () => {
       .first()
       .click();
 
-    // Wait for the puzzle to be solved again
-    await page.waitForSelector(".status.success", { timeout: 10000 });
-
     // Verify the day has changed
     const newDayButton = page.getByRole("button", {
       name: new RegExp(`Current day: ${targetDay}`),
@@ -108,9 +105,6 @@ test.describe("Calendar Puzzle Clickable Cells", () => {
 
     // Click on the current month button to cycle to next month
     await currentMonthButton.click();
-
-    // Wait for the puzzle to be solved again
-    await page.waitForSelector(".status.success", { timeout: 10000 });
 
     // Verify the month has changed to the next one
     const monthNames = [
@@ -149,9 +143,6 @@ test.describe("Calendar Puzzle Clickable Cells", () => {
     // Click on the current day button to cycle to next day
     await currentDayButton.click();
 
-    // Wait for the puzzle to be solved again
-    await page.waitForSelector(".status.success", { timeout: 10000 });
-
     // Verify the day has changed to the next one
     const expectedNextDay = (initialDay % 31) + 1;
 
@@ -167,7 +158,6 @@ test.describe("Calendar Puzzle Clickable Cells", () => {
       .getByRole("button", { name: "Select month Feb" })
       .first()
       .click();
-    await page.waitForSelector(".status.success", { timeout: 10000 });
 
     // Verify Feb is now selected
     await expect(
@@ -176,7 +166,6 @@ test.describe("Calendar Puzzle Clickable Cells", () => {
 
     // Click on day 14 using accessibility label
     await page.getByRole("button", { name: "Select day 14" }).first().click();
-    await page.waitForSelector(".status.success", { timeout: 10000 });
 
     // Verify day 14 is now selected
     await expect(
@@ -188,7 +177,6 @@ test.describe("Calendar Puzzle Clickable Cells", () => {
       .getByRole("button", { name: "Select month Mar" })
       .first()
       .click();
-    await page.waitForSelector(".status.success", { timeout: 10000 });
 
     // Verify Mar is now selected
     await expect(
@@ -217,7 +205,6 @@ test.describe("Calendar Puzzle Clickable Cells", () => {
 
     // Activate with Enter key
     await febButton.press("Enter");
-    await page.waitForSelector(".status.success", { timeout: 10000 });
 
     // Verify Feb is now selected
     await expect(
@@ -230,7 +217,6 @@ test.describe("Calendar Puzzle Clickable Cells", () => {
       .first();
     await day20Button.focus();
     await day20Button.press(" "); // Space key
-    await page.waitForSelector(".status.success", { timeout: 10000 });
 
     // Verify day 20 is now selected
     await expect(

@@ -97,7 +97,6 @@ The solver displays:
 - Month and day labels
 - Each piece marked with its number and unique color
 - Target cells marked in black
-- Success/error status messages
 
 ## Deployment
 
@@ -147,7 +146,6 @@ bun run typecheck
 
 The project uses TypeScript project references with separate configurations:
 - `tsconfig.base.json` - Shared base configuration
-- `tsconfig.worker.json` - Configuration for Web Worker files (`*.worker.js`)
 - `tsconfig.benchmarks.json` - Configuration for benchmark scripts
 - `tsconfig.tests.json` - Configuration for Playwright tests
 
