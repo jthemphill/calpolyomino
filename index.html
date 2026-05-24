@@ -69,6 +69,15 @@
         display: grid;
         gap: 4px;
         margin-top: 20px;
+        opacity: 1;
+        transition: opacity 180ms ease, filter 180ms ease;
+        will-change: opacity;
+      }
+
+      #board.updating {
+        opacity: 0.45;
+        filter: saturate(80%);
+        pointer-events: none;
       }
 
       .row {
@@ -165,6 +174,12 @@
 
         .cell {
           font-size: 10px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #board {
+          transition: none;
         }
       }
     </style>
@@ -488,9 +503,24 @@
         statusDiv.className = `status ${type}`;
       }
 
+      function setBoardUpdating(isUpdating) {
+        const boardDiv = document.getElementById("board");
+        boardDiv.classList.toggle("updating", isUpdating);
+      }
+
+      function finishBoardUpdate() {
+        requestAnimationFrame(() => {
+          setBoardUpdating(false);
+        });
+      }
+
       function solvePuzzle() {
         showStatus("Searching for solution...", "info");
-        renderBoard(currentMonth, currentDay, null);
+        const boardDiv = document.getElementById("board");
+        if (boardDiv.children.length === 0) {
+          renderBoard(currentMonth, currentDay, null);
+        }
+        setBoardUpdating(true);
 
         // Send message to worker
         worker.postMessage({ month: currentMonth, day: currentDay });
@@ -499,6 +529,10 @@
       const durFormatter = new Intl.DurationFormat("en-US", { style: "short" });
       worker.addEventListener("message", (e) => {
         const { success, solution, month, day, solveTimeMs, error } = e.data;
+
+        if (month !== currentMonth || Number(day) !== currentDay) {
+          return;
+        }
 
         if (success) {
           if (solution) {
@@ -509,15 +543,18 @@
               })}.`,
               "success"
             );
+            finishBoardUpdate();
           } else {
             renderBoard(month, day, null);
             showStatus(
               "✗ No solution found. The puzzle may not be solvable for this date.",
               "error"
             );
+            finishBoardUpdate();
           }
         } else {
           showStatus(`Error: ${error}`, "error");
+          finishBoardUpdate();
           console.error("Worker error:", error);
         }
       });
